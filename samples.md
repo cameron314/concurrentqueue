@@ -1,4 +1,4 @@
-# Samples for `moodycamel::ConcurrentQueue`
+# Samples for moodycamel::ConcurrentQueue
 
 Here are some example usage scenarios with sample code. Note that most
 use the simplest version of each available method for demonstration purposes,

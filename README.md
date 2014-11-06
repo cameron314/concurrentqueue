@@ -259,5 +259,3 @@ I did design and implement this queue from scratch.
 [license]: https://github.com/cameron314/concurrentqueue/blob/master/LICENSE.md
 [cdschecker]: http://demsky.eecs.uci.edu/c11modelchecker.html
 [relacy]: http://www.1024cores.net/home/relacy-race-detector
-
-{% block %}
