@@ -1,6 +1,6 @@
 # moodycamel::ConcurrentQueue<T>
 
-An industrial-strength lock free queue for C++.
+An industrial-strength lock-free queue for C++.
 
 ## Features
 
@@ -52,15 +52,16 @@ consumer wants to dequeue an element, it checks all the sub-queues until it find
 All of this is largely transparent to the user of the queue, however -- it just works<sup>TM</sup>.
 
 I've written a more detailed [overview of the internal design][blog], as well as [the full
-nitty-gritty details of the design][design] on my blog. Finally, the
+nitty-gritty details of the design][design], on my blog. Finally, the
 [source][source] itself is available for perusal for those interested in its implementation.
 
 ## Basic use
 
 The entire queue's implementation is contained in **one header**, [`concurrentqueue.h`][concurrentqueue.h].
 Simply download and include that to use the queue.
-The implementation makes use of certain key C++11 features, so it requires a fairly recent compiler (e.g. g++ 4.8);
-the code itself is platform-independent, however.
+The implementation makes use of certain key C++11 features, so it requires a fairly recent compiler
+(e.g. g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
+The code itself is platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
 it from many threads at once :-)
@@ -226,8 +227,8 @@ using the queue to *do* anything, the queue won't be your bottleneck.
 ## Tests (and bugs)
 
 I've written quite a few unit tests as well as a randomized long-running fuzz tester. I also ran the
-core queue algorithm through the [CDSChecker][cdschecker] C++11 memory model model checker. Some of the
-inner algorithms were also tested using the [Relacy][relacy] model checker.
+core queue algorithm through the [CDSChecker][cdschecker] C++11 memory model model checker. Also, some of the
+inner algorithms were tested using the [Relacy][relacy] model checker.
 I've tested
 on Linux (Fedora 19) and Windows (7), but only on x86 processors so far (Intel and AMD). The code was
 written to be platform-independent, however, and should work across all processors.
@@ -249,7 +250,7 @@ I did design and implement this queue from scratch.
 
 [blog]: http://moodycamel.com/blog/2014/a-fast-general-purpose-lock-free-queue-for-c++
 [design]: http://moodycamel.com/blog/2014/detailed-design-of-a-lock-free-queue
-[samples.md]: https://github.com/cameron314/concurrentqueue/master/blob/samples.md
+[samples.md]: https://github.com/cameron314/concurrentqueue/blob/master/samples.md
 [source]: https://github.com/cameron314/concurrentqueue
 [concurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/concurrentqueue.h
 [unittest-src]: https://github.com/cameron314/concurrentqueue/tree/master/tests/unittests
@@ -258,3 +259,5 @@ I did design and implement this queue from scratch.
 [license]: https://github.com/cameron314/concurrentqueue/blob/master/LICENSE.md
 [cdschecker]: http://demsky.eecs.uci.edu/c11modelchecker.html
 [relacy]: http://www.1024cores.net/home/relacy-race-detector
+
+{% block %}
