@@ -1,0 +1,38 @@
+# ©2013-2014 Cameron Desrochers
+
+include makefile.inc
+
+BASE_OPTS = -pthread
+
+DEBUG_OPTS = -g -O0   # -DMOODYCAMEL_QUEUE_INTERNAL_DEBUG
+RELEASE_OPTS = -O3 -g -DNDEBUG
+
+ifeq ($(OS),Windows_NT)
+	PLATFORM_OPTS = -static
+else
+	PLATFORM_OPTS = -lrt
+	# -fsanitize=address seems to have a slow memory leak when creating/destroying a lot of threads
+	#DEBUG_OPTS += -fno-omit-frame-pointer -fsanitize=address
+endif
+
+OPTS = $(BASE_OPTS) $(PLATFORM_OPTS) $(DEBUG_OPTS)
+BENCH_OPTS = $(BASE_OPTS) $(PLATFORM_OPTS) $(RELEASE_OPTS)
+
+
+default: tests benchmarks
+
+tests: bin/unittests$(EXT) bin/fuzztests$(EXT)
+	
+benchmarks: bin/benchmarks$(EXT)
+
+bin/unittests$(EXT): ../concurrentqueue.h ../tests/unittests/unittests.cpp ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp ../tests/corealgos.h ../tests/unittests/minitest.h makefile
+	test -d bin || mkdir bin
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion $(OPTS) -fno-elide-constructors ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/unittests/unittests.cpp -o bin/unittests$(EXT)
+
+bin/fuzztests$(EXT): ../concurrentqueue.h ../tests/fuzztests/fuzztests.cpp ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp ../tests/corealgos.h makefile
+	test -d bin || mkdir bin
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/fuzztests/fuzztests.cpp -o bin/fuzztests$(EXT)
+
+bin/benchmarks$(EXT): ../concurrentqueue.h ../benchmarks/benchmarks.cpp ../benchmarks/cpuid.h ../benchmarks/cpuid.cpp ../benchmarks/lockbasedqueue.h ../benchmarks/simplelockfree.h ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp makefile
+	test -d bin || mkdir bin
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) -I../benchmarks ../benchmarks/cpuid.cpp ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../benchmarks/benchmarks.cpp -o bin/benchmarks$(EXT)

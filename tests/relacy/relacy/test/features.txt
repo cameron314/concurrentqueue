@@ -1,0 +1,9 @@
+ - Relaxed ISO C++0x Memory Model. Relaxed/acquire/release/acq_rel/seq_cst memory operations. The only non-supported feature is memory_order_consume, it's simulated with memory_order_acquire.
+ - Exhaustive automatic error checking (including ABA detection).
+ - Full-fledged atomics library (with spurious failures in compare_exchange()).
+ - Memory fences.
+ - Arbitrary number of threads.
+ - Detailed execution history for failed tests.
+ - No false positives.
+ - Before/after/invariant functions for test suites.
+

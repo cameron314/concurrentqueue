@@ -1,0 +1,10 @@
+ - Race condition (accoring to ISO C++0x)
+ - Access to uninitialized variable
+ - Access to freed memory
+ - Double free
+ - Memory leak
+ - Deadlock
+ - Livelock
+ - User assert failed
+ - User invariant failed
+

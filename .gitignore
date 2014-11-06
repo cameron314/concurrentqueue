@@ -1,0 +1,15 @@
+*.ipch
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.exe
+build/bin/
+tests/fuzztests/fuzztests.log
+benchmarks/benchmarks.log
+tests/CDSChecker/*.o
+tests/CDSChecker/*.log
+tests/CDSChecker/model-checker/
+tests/relacy/freelist.exe
+tests/relacy/spmchash.exe
+tests/relacy/log.txt
