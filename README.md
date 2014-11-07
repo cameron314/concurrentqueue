@@ -240,7 +240,7 @@ on Linux (Fedora 19) and Windows (7), but only on x86 processors so far (Intel a
 written to be platform-independent, however, and should work across all processors.
 
 Due to the complexity of the implementation and the difficult-to-test nature of lock-free code in general,
-there may still be bugs. If anyone is seeing buggy behaviour, I'd like to here about it! (Especially if
+there may still be bugs. If anyone is seeing buggy behaviour, I'd like to hear about it! (Especially if
 a unit test for it can be cooked up.) Just open an issue on GitHub.
 
 
