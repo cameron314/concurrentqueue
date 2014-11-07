@@ -219,9 +219,13 @@ the [unit tests][unittest-src] and [benchmarks][benchmark-src] are available for
 
 ## Benchmarks
 
-See my blog post for some [benchmark results][benchmark-results] (including versus Boost::ConcurrentQueue),
+See my blog post for some [benchmark results][benchmarks] (including versus Boost::ConcurrentQueue),
 or run the benchmarks yourself (requires MinGW and certain GnuWin32 utilities to build on Windows, or a recent
-g++ on Linux).
+g++ on Linux):
+
+    cd build
+    make benchmarks
+    bin/benchmarks
 
 The short version of the benchmarks is that it's so fast (especially the bulk methods), that if you're actually
 using the queue to *do* anything, the queue won't be your bottleneck.
