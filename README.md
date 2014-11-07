@@ -219,7 +219,7 @@ the [unit tests][unittest-src] and [benchmarks][benchmark-src] are available for
 
 ## Benchmarks
 
-See my blog post for some [benchmark results][benchmarks] (including versus Boost::ConcurrentQueue),
+See my blog post for some [benchmark results][benchmarks] (including versus `boost::lockfree::queue`),
 or run the benchmarks yourself (requires MinGW and certain GnuWin32 utilities to build on Windows, or a recent
 g++ on Linux):
 
