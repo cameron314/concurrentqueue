@@ -19,11 +19,11 @@ Note: If all you need is a single-producer, single-consumer queue, I have [one o
 ## Reasons to use
 
 There are not that many full-fledged lock-free queues for C++. Boost has one, but it's limited to objects with trivial
-assignment operators and trivial destructors, for example.
-There's also many academic papers that implement lock-free queues in C++, but usable source code is
+assignment operators and trivial destructors, for example. Intel's TBB queue isn't lock-free, and requires trivial constructors too.
+There's many academic papers that implement lock-free queues in C++, but usable source code is
 hard to find, and tests even more so.
 
-This queue not only has less limitations than Boost's, but [it's also faster][benchmarks].
+This queue not only has less limitations than others, but [it's also faster][benchmarks].
 It's been fairly well-tested, and offers advanced features like bulk enqueuing/dequeueing
 (which, with my new design, is much faster than one element at a time, approaching and even surpassing
 the speed of a non-conurrent queue even under heavy contention).
@@ -42,9 +42,13 @@ threads, do so!
 Why use concurrent data structures at all, then? Because they're gosh darn convenient! (And, indeed,
 sometimes sharing data concurrently is unavoidable.)
 
-Note also that the implementation is *not* exception safe, so if you use exceptions, make sure that
+Note also that the implementation is (presently) *not* exception safe, so if you use exceptions, make sure that
 they can't be thrown from within the constructor and assignment operator of your object type. The
 queue itself never throws any exceptions (even for memory allocation failures, which it handles gracefully).
+
+My queue is also not NUMA aware, and does a lot of memory re-use internally, meaning it probably doesn't
+scale particularly well on NUMA architectures; however, I don't know of any other lock-free queue that *is*
+NUMA aware (except for [SALSA][salsa], which is very cool, but has no publicly available implementation that I know of).
 
 ## High-level design
 
@@ -52,6 +56,17 @@ Elements are stored internally using contiguous blocks instead of linked lists f
 The queue is made up of a collection of sub-queues, one for each producer thread. When a
 consumer wants to dequeue an element, it checks all the sub-queues until it finds one.
 All of this is largely transparent to the user of the queue, however -- it just works<sup>TM</sup>.
+
+One particular consequence of this design (which seems to be non-intuitive) is that if two producers
+enqueue at the same time, there is no defined ordering between the elements when they're later dequeued.
+Normally this is fine, because even with a fully linearizable queue there'd be a race between the producer
+threads and so you couldn't rely on the ordering anyway. However, if for some reason you do extra explicit synchronization
+between the two producer threads yourself, thus defining a total order between enqueue operations, you might expect
+that the elements would come out in the same total order, which is a guarantee my queue does not offer. At that
+point, though, there semantically aren't really two separate producers, but rather one that happens to be spread
+across two threads. In this case, you can still establish a total ordering with my queue by creating
+a single producer token, and using that from both threads to enqueue (taking care to synchronize access to the token,
+of course, but there was already extra syncrhonization involved anyway). I expect this use case to be fairly rare, though!
 
 I've written a more detailed [overview of the internal design][blog], as well as [the full
 nitty-gritty details of the design][design], on my blog. Finally, the
@@ -266,3 +281,4 @@ I did design and implement this queue from scratch.
 [cdschecker]: http://demsky.eecs.uci.edu/c11modelchecker.html
 [relacy]: http://www.1024cores.net/home/relacy-race-detector
 [spsc]: https://github.com/cameron314/readerwriterqueue
+[salsa]: http://webee.technion.ac.il/~idish/ftp/spaa049-gidron.pdf
