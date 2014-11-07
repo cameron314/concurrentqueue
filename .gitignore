@@ -5,6 +5,7 @@
 *.opensdf
 *.exe
 build/bin/
+build/*.log
 tests/fuzztests/fuzztests.log
 benchmarks/benchmarks.log
 tests/CDSChecker/*.o

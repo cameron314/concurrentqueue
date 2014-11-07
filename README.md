@@ -2,6 +2,8 @@
 
 An industrial-strength lock-free queue for C++.
 
+Note: If all you need is a single-producer, single-consumer queue, I have [one of those too][spsc].
+
 ## Features
 
 - Knock-your-socks-off [blazing fast performance][benchmarks].
@@ -259,3 +261,4 @@ I did design and implement this queue from scratch.
 [license]: https://github.com/cameron314/concurrentqueue/blob/master/LICENSE.md
 [cdschecker]: http://demsky.eecs.uci.edu/c11modelchecker.html
 [relacy]: http://www.1024cores.net/home/relacy-race-detector
+[spsc]: https://github.com/cameron314/readerwriterqueue

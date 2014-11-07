@@ -267,7 +267,7 @@ counter_t rampUpToMeasurableNumberOfMaxOps(TFunc const& func, counter_t startOps
 	do {
 		time = func(ops);
 		ops *= 2;
-	} while (time < (precise ? 45 : 10));
+	} while (time < (precise ? 30 : 10));
 #ifdef NDEBUG
 	return ops / 2;
 #else
@@ -1841,9 +1841,9 @@ int main(int argc, char** argv)
 	
 	
 #ifdef NDEBUG
-	const int ITERATIONS = precise ? 160 : 10;
+	const int ITERATIONS = precise ? 100 : 10;
 #else
-	const int ITERATIONS = precise ? 25 : 2;
+	const int ITERATIONS = precise ? 20 : 2;
 #endif
 	
 	
