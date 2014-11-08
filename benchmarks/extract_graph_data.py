@@ -48,7 +48,7 @@ try:
 	filename = 'benchmarks.log' if len(sys.argv) < 2 else sys.argv[1]
 	with open(filename, 'r') as f:
 		pieces = f.read().split('--- New run')
-		log = pieces[len(pieces) - 1]
+		log = pieces[-1]
 		
 		enq_data = { }
 		extract('only enqueue', log, enq_data)
