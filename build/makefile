@@ -9,6 +9,7 @@ RELEASE_OPTS = -O3 -g -DNDEBUG
 
 ifeq ($(OS),Windows_NT)
 	PLATFORM_OPTS = -static
+	TBB_PLATFORM_OPTS = -DUSE_WINTHREAD
 else
 	PLATFORM_OPTS = -lrt
 	# -fsanitize=address seems to have a slow memory leak when creating/destroying a lot of threads
@@ -33,6 +34,12 @@ bin/fuzztests$(EXT): ../concurrentqueue.h ../tests/fuzztests/fuzztests.cpp ../te
 	test -d bin || mkdir bin
 	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/fuzztests/fuzztests.cpp -o bin/fuzztests$(EXT)
 
-bin/benchmarks$(EXT): ../concurrentqueue.h ../benchmarks/benchmarks.cpp ../benchmarks/cpuid.h ../benchmarks/cpuid.cpp ../benchmarks/lockbasedqueue.h ../benchmarks/simplelockfree.h ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp makefile
+bin/benchmarks$(EXT): bin/libtbb.a ../concurrentqueue.h ../benchmarks/benchmarks.cpp ../benchmarks/cpuid.h ../benchmarks/cpuid.cpp ../benchmarks/lockbasedqueue.h ../benchmarks/simplelockfree.h ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp makefile
 	test -d bin || mkdir bin
-	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) -I../benchmarks ../benchmarks/cpuid.cpp ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../benchmarks/benchmarks.cpp -o bin/benchmarks$(EXT)
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) -I../benchmarks ../benchmarks/cpuid.cpp ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../benchmarks/benchmarks.cpp -o bin/benchmarks$(EXT) -Lbin -ltbb
+	
+bin/libtbb.a: makefile
+	test -d bin || mkdir bin
+	g++ -std=c++11 -O3 -DNDEBUG -D__TBB_BUILD=1 $(TBB_PLATFORM_OPTS) -I../benchmarks -c ../benchmarks/tbb/cache_aligned_allocator.cpp ../benchmarks/tbb/concurrent_monitor.cpp ../benchmarks/tbb/concurrent_queue.cpp ../benchmarks/tbb/dynamic_link.cpp ../benchmarks/tbb/tbb_misc.cpp
+	ar -rc bin/libtbb.a cache_aligned_allocator.o concurrent_monitor.o concurrent_queue.o dynamic_link.o tbb_misc.o
+	rm -f cache_aligned_allocator.o concurrent_monitor.o concurrent_queue.o dynamic_link.o tbb_misc.o

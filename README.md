@@ -262,7 +262,7 @@ a unit test for it can be cooked up.) Just open an issue on GitHub.
 ## License
 
 I'm releasing the source of this repository (with the exception of third-party code, i.e. the Boost queue
-(used in the benchmarks for comparison) and CDSChecker, which have their own licenses) under a [simplified BSD license][license].
+(used in the benchmarks for comparison), Intel's TBB library (ditto), CDSChecker, and Relacy, which have their own licenses) under a [simplified BSD license][license].
 
 Note that lock-free programming is a patent minefield, and this code may very
 well violate a pending patent (I haven't looked), though it does not to my present knowledge.

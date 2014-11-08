@@ -11,7 +11,7 @@ import re
 
 
 def extract(bench, log, data):
-	# data = { thread_count: [ locked, boost, moodycamel, moodycamel_tok, moodycamel_bulk ], ... }
+	# data = { thread_count: [ locked, boost, tbb, moodycamel, moodycamel_tok, moodycamel_bulk ], ... }
 	
 	def do_extract(bench, queue_header):
 		block = re.search(r'^' + bench + r':.*?' + queue_header + r'\s*(.*?)\s*^\s*Operations per second', log, re.S | re.M | re.I).group(1)
@@ -28,6 +28,7 @@ def extract(bench, log, data):
 	
 	do_extract(bench, 'LockBasedQueue')
 	do_extract(bench, 'boost::lockfree::queue')
+	do_extract(bench, 'tbb::concurrent_queue')
 	do_extract(bench, 'Without tokens')
 	do_extract(bench, 'With tokens')
 	do_extract(bench + ' bulk', 'With tokens')
@@ -35,7 +36,7 @@ def extract(bench, log, data):
 
 def write_csv(data, path):
 	with open(path, 'w') as f:
-		f.write('threads,"std::queue + std::mutex","boost::lockfree::queue","moodycamel::ConcurrentQueue (no tokens)","moodycamel::ConcurrentQueue","moodycamel::ConcurrentQueue (bulk)"\n')
+		f.write('threads,"std::queue + std::mutex","boost::lockfree::queue","tbb::concurrent_queue","moodycamel::ConcurrentQueue (no tokens)","moodycamel::ConcurrentQueue","moodycamel::ConcurrentQueue (bulk)"\n')
 		for threads in sorted(data.keys()):
 			f.write(str(threads))
 			for opsst in data[threads]:

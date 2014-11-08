@@ -1,7 +1,7 @@
 This license applies to everything in this repository except that which
 is explicitly annotated as being written by other authors, i.e. the Boost
-queue (included in the benchmarks for comparison), the CDSChecker tool,
-and the Relacy model checker.
+queue (included in the benchmarks for comparison), Intel's TBB library (ditto),
+the CDSChecker tool, and the Relacy model checker.
 
 
 Simplified BSD License:
