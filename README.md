@@ -23,10 +23,10 @@ assignment operators and trivial destructors, for example. Intel's TBB queue isn
 There's many academic papers that implement lock-free queues in C++, but usable source code is
 hard to find, and tests even more so.
 
-This queue not only has less limitations than others, but [it's also faster][benchmarks].
-It's been fairly well-tested, and offers advanced features like bulk enqueuing/dequeueing
+This queue not only has less limitations than others (for the most part), but [it's also faster][benchmarks].
+It's been fairly well-tested, and offers advanced features like **bulk enqueueing/dequeueing**
 (which, with my new design, is much faster than one element at a time, approaching and even surpassing
-the speed of a non-conurrent queue even under heavy contention).
+the speed of a non-concurrent queue even under heavy contention).
 
 In short, there was a lock-free queue shaped hole in the C++ open-source universe, and I set out
 to fill it with the fastest, most complete, and well-tested design and implementation I could.
@@ -42,11 +42,19 @@ threads, do so!
 Why use concurrent data structures at all, then? Because they're gosh darn convenient! (And, indeed,
 sometimes sharing data concurrently is unavoidable.)
 
-Note also that the implementation is (presently) *not* exception safe, so if you use exceptions, make sure that
+My queue is **not linearizable** (see the next section on high-level design). The foundations of
+its design assume that producers are independent; if this is not the case, and your producers
+co-ordinate amongst themselves in some fashion, be aware that the elements won't necessarily
+come of the queue in the same order they were put in *relative to the ordering formed by that co-ordination*
+(but they will still come out in the order they were put in by any *individual* producer). If this affects
+your use case, you may be better off with another implementation; either way, it's an important limitation
+to be aware of.
+
+Note also that the implementation is (presently) **not exception safe**, so if you use exceptions, make sure that
 they can't be thrown from within the constructor and assignment operator of your object type. The
 queue itself never throws any exceptions (even for memory allocation failures, which it handles gracefully).
 
-My queue is also not NUMA aware, and does a lot of memory re-use internally, meaning it probably doesn't
+My queue is also **not NUMA aware**, and does a lot of memory re-use internally, meaning it probably doesn't
 scale particularly well on NUMA architectures; however, I don't know of any other lock-free queue that *is*
 NUMA aware (except for [SALSA][salsa], which is very cool, but has no publicly available implementation that I know of).
 
@@ -66,7 +74,7 @@ that the elements would come out in the same total order, which is a guarantee m
 point, though, there semantically aren't really two separate producers, but rather one that happens to be spread
 across two threads. In this case, you can still establish a total ordering with my queue by creating
 a single producer token, and using that from both threads to enqueue (taking care to synchronize access to the token,
-of course, but there was already extra syncrhonization involved anyway). I expect this use case to be fairly rare, though!
+of course, but there was already extra synchronization involved anyway).
 
 I've written a more detailed [overview of the internal design][blog], as well as [the full
 nitty-gritty details of the design][design], on my blog. Finally, the
@@ -234,7 +242,7 @@ the [unit tests][unittest-src] and [benchmarks][benchmark-src] are available for
 
 ## Benchmarks
 
-See my blog post for some [benchmark results][benchmarks] (including versus `boost::lockfree::queue`),
+See my blog post for some [benchmark results][benchmarks] (including versus `boost::lockfree::queue` and `tbb::concurrent_queue`),
 or run the benchmarks yourself (requires MinGW and certain GnuWin32 utilities to build on Windows, or a recent
 g++ on Linux):
 
@@ -248,7 +256,7 @@ using the queue to *do* anything, the queue won't be your bottleneck.
 ## Tests (and bugs)
 
 I've written quite a few unit tests as well as a randomized long-running fuzz tester. I also ran the
-core queue algorithm through the [CDSChecker][cdschecker] C++11 memory model model checker. Also, some of the
+core queue algorithm through the [CDSChecker][cdschecker] C++11 memory model model checker. Some of the
 inner algorithms were tested using the [Relacy][relacy] model checker.
 I've tested
 on Linux (Fedora 19) and Windows (7), but only on x86 processors so far (Intel and AMD). The code was
