@@ -384,6 +384,11 @@ private: // but shared with ConcurrentQueue
 	details::ConcurrentQueueProducerTypelessBase* desiredProducer;
 };
 
+// Need to forward-declare this swap because it's in a namespace.
+// See http://stackoverflow.com/questions/4492062/why-does-a-c-friend-class-need-a-forward-declaration-only-in-other-namespaces
+template<typename T, typename Traits>
+inline void swap(typename ConcurrentQueue<T, Traits>::ImplicitProducerKVP& a, typename ConcurrentQueue<T, Traits>::ImplicitProducerKVP& b) MOODYCAMEL_NOEXCEPT;
+
 
 template<typename T, typename Traits = ConcurrentQueueDefaultTraits>
 class ConcurrentQueue
