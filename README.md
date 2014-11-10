@@ -12,8 +12,8 @@ Note: If all you need is a single-producer, single-consumer queue, I have [one o
 - C++11 implementation -- elements are moved (instead of copied) where possible.
 - Templated, obviating the need to deal exclusively with pointers -- memory is managed for you.
 - No limitations in terms of the type or quantity of elements that can be put in the queue.
-- Supports use as a fixed-size queue (memory only allocated once up-front).
-- Supports use as a dynamically-sized queue (some memory is allocated up-front, then more as needed).
+- Memory can be allocated once up-front, or dynamically as needed.
+- Fully portable (no assembly; all is done through the standard C++11 primitives).
 - Supports super-fast bulk operations.
 
 ## Reasons to use
@@ -266,7 +266,6 @@ Due to the complexity of the implementation and the difficult-to-test nature of 
 there may still be bugs. If anyone is seeing buggy behaviour, I'd like to hear about it! (Especially if
 a unit test for it can be cooked up.) Just open an issue on GitHub.
 
-
 ## License
 
 I'm releasing the source of this repository (with the exception of third-party code, i.e. the Boost queue
@@ -275,6 +274,34 @@ I'm releasing the source of this repository (with the exception of third-party c
 Note that lock-free programming is a patent minefield, and this code may very
 well violate a pending patent (I haven't looked), though it does not to my present knowledge.
 I did design and implement this queue from scratch.
+
+## Diving into the code
+
+If you're interesting in the source code itself, it helps to have a rough idea of how it's laid out. This
+section attempts to describe that for those interested.
+
+The queue is formed of several basic parts (listed here in roughly the order they appear in the source). There's the
+helper functions (e.g. for rounding to a power of 2). There's the default traits of the queue, which contain the
+constants and malloc/free functions used by the queue. There's the producer and consumer tokens. Then there's the queue's
+public API itself, starting with the constructor, destructor, and swap/assignment methods. There's the public enqueue methods,
+which are all wrappers around a small set of private enqueue methods found later on. There's the dequeue methods, which are
+defined inline and are relatively straightforward.
+
+Then there's all the main internal data structures. First, there's a lock-free free list, used for recycling spent blocks (elements
+are enqueued to blocks internally). Then there's the block structure itself, which has two different ways of tracking whether
+it's fully emptied or not (remember, given two parallel consumers, there's no way to know which one will finish first) depending on where it's used.
+Then there's a small base class for the two types of internal SPMC producer queues (one for explicit producers that holds onto memory
+but attempts to be faster, and one for implicit ones which attempt to recycle more memory back into the parent but is a little slower).
+The explicit producer is defined first, then the implicit one. They both contain the same general four methods: One to enqueue, one to
+dequeue, one to enqueue in bulk, and one to dequeue in bulk. (Obviously they have constructors and destructors too, and helper methods.)
+The main difference between them is how the block handling is done (they both use the same blocks, but in different ways, and map indices
+to them in different ways).
+
+Finally, there's the miscellaneous internal methods: There's the ones that handle the initial block pool (populated when the queue is constructed),
+and an abstract block pool that comprises the initial pool and any blocks on the free list. There's ones that handle the producer list
+(a lock-free add-only linked list of all the producers in the system). There's ones that handle the implicit producer lookup table (which
+is really a sort of specialized TLS lookup). And then there's some helper methods for allocating and freeing objects, and the data members
+of the queue itself, followed lastly by the free-standing swap functions.
 
 
 [blog]: http://moodycamel.com/blog/2014/a-fast-general-purpose-lock-free-queue-for-c++

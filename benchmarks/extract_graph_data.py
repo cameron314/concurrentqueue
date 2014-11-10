@@ -10,7 +10,7 @@ import sys
 import re
 
 
-def extract(bench, log, data):
+def extract(bench, log, data, hasBulk = True):
 	# data = { thread_count: [ locked, boost, tbb, moodycamel, moodycamel_tok, moodycamel_bulk ], ... }
 	
 	def do_extract(bench, queue_header):
@@ -31,12 +31,13 @@ def extract(bench, log, data):
 	do_extract(bench, 'tbb::concurrent_queue')
 	do_extract(bench, 'Without tokens')
 	do_extract(bench, 'With tokens')
-	do_extract(bench + ' bulk', 'With tokens')
+	if hasBulk:
+		do_extract(bench + ' bulk', 'With tokens')
 
 
-def write_csv(data, path):
+def write_csv(data, path, hasBulk = True):
 	with open(path, 'w') as f:
-		f.write('threads,"std::queue + std::mutex","boost::lockfree::queue","tbb::concurrent_queue","moodycamel::ConcurrentQueue (no tokens)","moodycamel::ConcurrentQueue","moodycamel::ConcurrentQueue (bulk)"\n')
+		f.write('threads,"std::queue + std::mutex","boost::lockfree::queue","tbb::concurrent_queue","moodycamel::ConcurrentQueue (no tokens)","moodycamel::ConcurrentQueue",' + ('"moodycamel::ConcurrentQueue (bulk)"' if hasBulk else '') + '\n')
 		for threads in sorted(data.keys()):
 			f.write(str(threads))
 			for opsst in data[threads]:
@@ -56,7 +57,11 @@ try:
 		deq_data = { }
 		extract('only dequeue', log, deq_data)
 		
+		heavy_data = { }
+		extract('heavy concurrent', log, heavy_data, False)
+		
 		write_csv(enq_data, 'enqueue.csv')
 		write_csv(deq_data, 'dequeue.csv')
+		write_csv(heavy_data, 'heavy.csv', False)
 except IOError:
 	print 'Usage: ' + sys.argv[0] + ' path/to/benchmarks.log'
