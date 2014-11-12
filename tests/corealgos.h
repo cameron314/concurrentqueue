@@ -155,11 +155,11 @@ template<typename T>		// T should inherit ListItem or implement the same interfa
 struct ThreadLocal
 {
 	explicit ThreadLocal(std::size_t initialHashSize)
-		: resizeInProgress(ATOMIC_FLAG_INIT),
-		initialHashEntries(initialHashSize)
+		: initialHashEntries(initialHashSize)
 	{
 		assert(initialHashSize > 0 && (initialHashSize & (initialHashSize - 1)) == 0);
 		
+		resizeInProgress.clear();
 		currentHashCount.store(0, std::memory_order_relaxed);
 		auto hash = &initialHash;
 		hash->capacity = initialHashSize;

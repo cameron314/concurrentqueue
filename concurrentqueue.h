@@ -435,7 +435,7 @@ public:
 		nextExplicitConsumerId(0),
 		globalExplicitConsumerOffset(0)
 	{
-		implicitProducerHashResizeInProgress = ATOMIC_FLAG_INIT;
+		implicitProducerHashResizeInProgress.clear();
 		populate_initial_implicit_producer_hash();
 		populate_initial_block_list(capacity / BLOCK_SIZE + ((capacity & (BLOCK_SIZE - 1)) == 0 ? 0 : 1));
 	}
@@ -507,7 +507,7 @@ public:
 		globalExplicitConsumerOffset(other.globalExplicitConsumerOffset.load(std::memory_order_relaxed))
 	{
 		// Move the other one into this, and leave the other one as an empty queue
-		implicitProducerHashResizeInProgress = ATOMIC_FLAG_INIT;
+		implicitProducerHashResizeInProgress.clear();
 		populate_initial_implicit_producer_hash();
 		swap_implicit_producer_hashes(other);
 		

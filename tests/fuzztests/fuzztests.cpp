@@ -637,7 +637,7 @@ static const char* timestamp()
 
 extern "C" { typedef void (*signal_handler_t)(int); }
 static std::atomic<std::uint64_t> g_seed(0);
-static std::atomic_flag reported_signal_error(ATOMIC_FLAG_INIT);
+static std::atomic_flag reported_signal_error = ATOMIC_FLAG_INIT;
 static std::atomic<signal_handler_t> g_prev_sigsegv(nullptr);
 static std::atomic<signal_handler_t> g_prev_sigabrt(nullptr);
 static std::mutex g_signal_handler_mutex;
