@@ -432,10 +432,10 @@ public:
 		: producerListTail(nullptr),
 		producerCount(0),
 		initialBlockPoolIndex(0),
-		implicitProducerHashResizeInProgress(ATOMIC_FLAG_INIT),
 		nextExplicitConsumerId(0),
 		globalExplicitConsumerOffset(0)
 	{
+		implicitProducerHashResizeInProgress = ATOMIC_FLAG_INIT;
 		populate_initial_implicit_producer_hash();
 		populate_initial_block_list(capacity / BLOCK_SIZE + ((capacity & (BLOCK_SIZE - 1)) == 0 ? 0 : 1));
 	}
@@ -503,11 +503,11 @@ public:
 		initialBlockPool(other.initialBlockPool),
 		initialBlockPoolSize(other.initialBlockPoolSize),
 		freeList(std::move(other.freeList)),
-		implicitProducerHashResizeInProgress(ATOMIC_FLAG_INIT),
 		nextExplicitConsumerId(other.nextExplicitConsumerId.load(std::memory_order_relaxed)),
 		globalExplicitConsumerOffset(other.globalExplicitConsumerOffset.load(std::memory_order_relaxed))
 	{
 		// Move the other one into this, and leave the other one as an empty queue
+		implicitProducerHashResizeInProgress = ATOMIC_FLAG_INIT;
 		populate_initial_implicit_producer_hash();
 		swap_implicit_producer_hashes(other);
 		
@@ -563,8 +563,6 @@ private:
 	}
 	
 public:
-	
-	
 	// Enqueues a single item (by copying it).
 	// Allocates memory if required. Only fails if memory allocation fails (or implicit
 	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
@@ -575,7 +573,7 @@ public:
 		return inner_enqueue<CanAlloc>(item);
 	}
 	
-	// Enqueues a single item (by moving it).
+	// Enqueues a single item (by moving it, if possible).
 	// Allocates memory if required. Only fails if memory allocation fails (or implicit
 	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
 	// Thread-safe.
@@ -593,7 +591,7 @@ public:
 		return inner_enqueue<CanAlloc>(token, item);
 	}
 	
-	// Enqueues a single item (by moving it) using an explicit producer token.
+	// Enqueues a single item (by moving it, if possible) using an explicit producer token.
 	// Allocates memory if required. Only fails if memory allocation fails.
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T&& item)
@@ -635,7 +633,7 @@ public:
 		return inner_enqueue<CannotAlloc>(item);
 	}
 	
-	// Enqueues a single item (by moving it).
+	// Enqueues a single item (by moving it, if possible).
 	// Does not allocate memory (except for one-time implicit producer).
 	// Fails if not enough room to enqueue (or implicit production is
 	// disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
@@ -654,7 +652,7 @@ public:
 		return inner_enqueue<CannotAlloc>(token, item);
 	}
 	
-	// Enqueues a single item (by moving it) using an explicit producer token.
+	// Enqueues a single item (by moving it, if possible) using an explicit producer token.
 	// Does not allocate memory. Fails if not enough room to enqueue.
 	// Thread-safe.
 	inline bool try_enqueue(producer_token_t const& token, T&& item)
@@ -2492,7 +2490,7 @@ private:
 	void reown_producers()
 	{
 		// After another instance is moved-into/swapped-with this one, all the
-		// producers we stole still think they're parents are the other queue.
+		// producers we stole still think their parents are the other queue.
 		// So fix them up!
 		for (auto ptr = producerListTail.load(std::memory_order_relaxed); ptr != nullptr; ptr = ptr->next_prod()) {
 			ptr->parent = this;
