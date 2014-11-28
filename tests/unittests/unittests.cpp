@@ -2302,7 +2302,7 @@ public:
 			ASSERT_OR_FAIL(q.size_approx() == 6);
 			
 			std::vector<ThrowingMovable> results;
-			results.reserve(4);
+			results.reserve(5);
 			ASSERT_OR_FAIL(q.try_dequeue_bulk(std::back_inserter(results), 2));
 			ASSERT_OR_FAIL(results.size() == 2);
 			ASSERT_OR_FAIL(results[0].id == 10);
@@ -2544,7 +2544,7 @@ public:
 			ASSERT_OR_FAIL(q.size_approx() == 6);
 			
 			std::vector<ThrowingMovable> results;
-			results.reserve(4);
+			results.reserve(5);
 			ASSERT_OR_FAIL(q.try_dequeue_bulk(std::back_inserter(results), 2));
 			ASSERT_OR_FAIL(results.size() == 2);
 			ASSERT_OR_FAIL(results[0].id == 10);
