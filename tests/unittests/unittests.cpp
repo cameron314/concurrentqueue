@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <cstddef>
+#include "stddef.h"
 
 #include "minitest.h"
 #include "../common/simplethread.h"
@@ -20,7 +20,7 @@ namespace {
 	{
 		union tag {
 			std::size_t size;
-			std::max_align_t dummy;
+			max_align_t dummy;
 		};
 		
 		static inline void* malloc(std::size_t size)
