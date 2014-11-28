@@ -32,7 +32,7 @@
     #include <malloc.h>
 
     // Unify system calls
-    #define dlopen( name, flags )   LoadLibrary( name )
+    #define dlopen( name, flags )   LoadLibraryA( name )
     #define dlsym( handle, name )   GetProcAddress( handle, name )
     #define dlclose( handle )       ( ! FreeLibrary( handle ) )
     #define dlerror()               GetLastError()
@@ -246,9 +246,9 @@ OPEN_INTERNAL_NAMESPACE
     #if _WIN32
         // Get handle of our DLL first.
         HMODULE handle;
-        BOOL brc = GetModuleHandleEx(
+        BOOL brc = GetModuleHandleExA(
             GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            (LPCSTR)( & dynamic_link ), // any function inside the library can be used for the address
+            (LPSTR)( & dynamic_link ), // any function inside the library can be used for the address
             & handle
             );
         if ( !brc ) { // Error occurred.
@@ -257,7 +257,7 @@ OPEN_INTERNAL_NAMESPACE
             return;
         }
         // Now get path to our DLL.
-        DWORD drc = GetModuleFileName( handle, ap_data._path, static_cast< DWORD >( PATH_MAX ) );
+        DWORD drc = GetModuleFileNameA( handle, ap_data._path, static_cast< DWORD >( PATH_MAX ) );
         if ( drc == 0 ) { // Error occurred.
             int err = GetLastError();
             DYNAMIC_LINK_WARNING( dl_sys_fail, "GetModuleFileName", err );
@@ -423,7 +423,7 @@ OPEN_INTERNAL_NAMESPACE
     #if _WIN32
     static dynamic_link_handle global_symbols_link( const char* library, const dynamic_link_descriptor descriptors[], size_t required ) {
         dynamic_link_handle library_handle;
-        if ( GetModuleHandleEx( 0, library, &library_handle ) ) {
+        if ( GetModuleHandleExA( 0, library, &library_handle ) ) {
             if ( resolve_symbols( library_handle, descriptors, required ) )
                 return library_handle;
             else

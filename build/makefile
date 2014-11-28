@@ -1,4 +1,6 @@
 # ©2013-2014 Cameron Desrochers
+# Makefile to build main tests and benchmarks, suitable
+# for use on unixen and Windows with MinGW + GnuWin32
 
 include makefile.inc
 

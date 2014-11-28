@@ -32,11 +32,11 @@ bool getProcessorInfoFromOS(int& cpus, int& cores, int& logicalCores, double& cl
 	
 	// Clock speed
 	HKEY hKey;
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_EXECUTE, &hKey) == ERROR_SUCCESS) {
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"), 0, KEY_EXECUTE, &hKey) == ERROR_SUCCESS) {
 		DWORD type = REG_DWORD;
 		DWORD val;
 		DWORD cbData = sizeof(val);
-		if (RegQueryValueEx(hKey, "~MHz", NULL, &type, (LPBYTE)&val, &cbData) == ERROR_SUCCESS) {
+		if (RegQueryValueEx(hKey, TEXT("~MHz"), NULL, &type, (LPBYTE)&val, &cbData) == ERROR_SUCCESS) {
 			if (type == REG_DWORD && cbData == sizeof(DWORD)) {
 				clockSpeed = val / 1000.0;
 			}
@@ -129,7 +129,7 @@ struct CPUIDInfo
 inline CPUIDInfo cpuid(std::uint32_t eax)
 {
 	CPUIDInfo info;
-	__cpuidex(info.data, eax, 0);
+	__cpuidex((int*)&info.data[0], eax, 0);
 	return info;
 }
 #else
@@ -183,7 +183,7 @@ namespace moodycamel
 		}
 		// Strip @ nGHz if any, since we re-calculate this ourselves
 		int atIndex;
-		for (atIndex = std::strlen(buf) - 1; atIndex != -1; --atIndex) {
+		for (atIndex = (int)std::strlen(buf) - 1; atIndex != -1; --atIndex) {
 			if (buf[atIndex] == '@') {
 				if (atIndex > 0 && buf[atIndex - 1] == ' ') {
 					--atIndex;

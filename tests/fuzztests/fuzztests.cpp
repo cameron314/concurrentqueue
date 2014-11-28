@@ -19,10 +19,11 @@
 #include <csignal>
 #include <mutex>
 #include <exception>
+#include <cctype>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
-#define NO_MIN_MAX
+#define NOMINMAX
 #include <windows.h>
 #endif
 
@@ -115,7 +116,8 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 		RNG_t rng(baseRng);
 		
 		std::atomic<bool> failed(false);
-		std::atomic<const char*> failReason(nullptr);
+		std::atomic<const char*> failReason;
+		failReason = nullptr;
 		SystemTime startTime = getSystemTime();
 		
 		switch (type) {
@@ -322,8 +324,8 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 					std::vector<int> lastItems(prodCount);
 					ConsumerToken t(q);
 					
-					for (int i = 0; i != prodCount; ++i) {
-						lastItems[i] = -1;
+					for (int j = 0; j != prodCount; ++j) {
+						lastItems[j] = -1;
 					}
 					
 					bool doneConsuming = false;
@@ -429,7 +431,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 							break;
 						case 2:
 							if (q.try_dequeue(ct, item)) {
-								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < largestOpCount);
+								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < (int)largestOpCount);
 								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) > lastItems[item >> 24]);
 								lastItems[item >> 24] = item & 0xFFFFFF;
 								
@@ -440,7 +442,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 							break;
 						case 3:
 							if (q.try_dequeue(item)) {
-								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < largestOpCount);
+								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < (int)largestOpCount);
 								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) > lastItems[item >> 24]);
 								lastItems[item >> 24] = item & 0xFFFFFF;
 								
@@ -457,7 +459,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 								state = &itemStates[(i * 2 + op - 4) * largestOpCount + j + k];
 								ASSERT_OR_FAIL_THREAD(*state == 0);
 								*state = 1;
-								bulkData[k] = ((i * 2 + op - 4) << 24) | (j + k);
+								bulkData[k] = ((i * 2 + op - 4) << 24) | (j + (int)k);
 							}
 							if (op == 4) {
 								ASSERT_OR_FAIL_THREAD(q.enqueue_bulk(pt, bulkData.begin(), bulkData.size()));
@@ -465,7 +467,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 							else {
 								ASSERT_OR_FAIL_THREAD(q.enqueue_bulk(bulkData.begin(), bulkData.size()));
 							}
-							j += bulkData.size() - 1;
+							j += (int)bulkData.size() - 1;
 							break;
 						}
 							
@@ -481,7 +483,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 							}
 							for (std::size_t k = 0; k != count; ++k) {
 								auto item = bulkData[k];
-								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < largestOpCount);
+								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < (int)largestOpCount);
 								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) > lastItems[item >> 24]);
 								lastItems[item >> 24] = item & 0xFFFFFF;
 								
@@ -490,7 +492,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 								*state = 2;
 							}
 							if (count > 0) {
-								j += count - 1;
+								j += (int)count - 1;
 							}
 							break;
 						}

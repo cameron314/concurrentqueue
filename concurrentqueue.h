@@ -237,8 +237,15 @@ namespace details
 	template<typename T>
 	static inline bool circular_less_than(T a, T b)
 	{
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4554)
+#endif
 		static_assert(std::is_integral<T>::value && !std::numeric_limits<T>::is_signed, "circular_less_than is intended to be used only with unsigned integer types");
 		return static_cast<T>(a - b) > static_cast<T>(static_cast<T>(1) << static_cast<T>(sizeof(T) * CHAR_BIT - 1));
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 	}
 	
 	template<typename U>
@@ -863,12 +870,12 @@ public:
 		
 		size_t count = static_cast<ProducerBase*>(token.currentProducer)->dequeue_bulk(itemFirst, max);
 		if (count == max) {
-			if ((token.itemsConsumedFromCurrent += max) >= EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE) {
+			if ((token.itemsConsumedFromCurrent += static_cast<std::uint32_t>(max)) >= EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE) {
 				globalExplicitConsumerOffset.fetch_add(1, std::memory_order_relaxed);
 			}
 			return max;
 		}
-		token.itemsConsumedFromCurrent += count;
+		token.itemsConsumedFromCurrent += static_cast<std::uint32_t>(count);
 		max -= count;
 		
 		auto tail = producerListTail.load(std::memory_order_acquire);
@@ -881,7 +888,7 @@ public:
 			count += dequeued;
 			if (dequeued != 0) {
 				token.currentProducer = ptr;
-				token.itemsConsumedFromCurrent = dequeued;
+				token.itemsConsumedFromCurrent = static_cast<std::uint32_t>(dequeued);
 			}
 			if (dequeued == max) {
 				break;

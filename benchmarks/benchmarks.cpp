@@ -20,6 +20,7 @@
 #include <cassert>
 #include <thread>
 #include <algorithm>
+#include <cctype>
 
 #include "../concurrentqueue.h"
 #include "lockbasedqueue.h"

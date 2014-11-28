@@ -4,8 +4,11 @@
 *.sdf
 *.opensdf
 *.exe
+*.pdb
 build/bin/
 build/*.log
+build/msvc12/*.log
+build/msvc12/obj/
 tests/fuzztests/fuzztests.log
 benchmarks/benchmarks.log
 tests/CDSChecker/*.o

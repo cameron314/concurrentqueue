@@ -8,6 +8,10 @@
 #include <atomic>
 #include <cstdint>
 
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define alignas(T)
+#endif
+
 // Fairly simple, yet correct, implementation of a simple lock-free queue based on linked pointers with CAS
 template<typename T>
 class SimpleLockFreeQueue

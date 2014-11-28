@@ -19,6 +19,8 @@ namespace details
 		typename std::remove_reference<TArg1>::type arg1;
 		typename std::remove_reference<TArg2>::type arg2;
 		typename std::remove_reference<TArg3>::type arg3;
+		ArgWrapper(ArgWrapper const& o) : arg1(o.arg1), arg2(o.arg2), arg3(o.arg3) { }
+		ArgWrapper(ArgWrapper&& o) : arg1(std::move(o.arg1)), arg2(std::move(o.arg2)), arg3(std::move(o.arg3)) { }
 		template<typename T, typename U, typename V>
 		ArgWrapper(T&& a1, U&& a2, V&& a3) : arg1(std::forward<T>(a1)), arg2(std::forward<U>(a2)), arg3(std::forward<V>(a3)) { }
 		template<typename TCallback>
@@ -30,6 +32,8 @@ namespace details
 	{
 		typename std::remove_reference<TArg1>::type arg1;
 		typename std::remove_reference<TArg2>::type arg2;
+		ArgWrapper(ArgWrapper const& o) : arg1(o.arg1), arg2(o.arg2) { }
+		ArgWrapper(ArgWrapper&& o) : arg1(std::move(o.arg1)), arg2(std::move(o.arg2)) { }
 		template<typename T, typename U>
 		ArgWrapper(T&& a1, U&& a2) : arg1(std::forward<T>(a1)), arg2(std::forward<U>(a2)) { }
 		template<typename TCallback>
@@ -40,6 +44,8 @@ namespace details
 	struct ArgWrapper<TArg1, void, void>
 	{
 		typename std::remove_reference<TArg1>::type arg1;
+		ArgWrapper(ArgWrapper const& o) : arg1(o.arg1) { }
+		ArgWrapper(ArgWrapper&& o) : arg1(std::move(o.arg1)) { }
 		template<typename T>
 		ArgWrapper(T&& a1) : arg1(std::forward<T>(a1)) { }
 		template<typename TCallback>
@@ -110,41 +116,41 @@ public:
 	template<typename TCallback>
 	explicit SimpleThread(TCallback&& callback)
 	{
-		auto wrapper = new CallbackWrapper<TCallback, details::ArgWrapper<>>(
+		auto wrapper = new CallbackWrapper<TCallback, ::details::ArgWrapper<>>(
 			std::forward<TCallback>(callback),
-			details::ArgWrapper<>()
+			::details::ArgWrapper<>()
 		);
-		startThread(wrapper, &CallbackWrapper<TCallback, details::ArgWrapper<>>::callAndDelete);
+		startThread(wrapper, &CallbackWrapper<TCallback, ::details::ArgWrapper<>>::callAndDelete);
 	}
 
 	template<typename TCallback, typename TArg1>
 	explicit SimpleThread(TCallback&& callback, TArg1&& arg1)
 	{
-		auto wrapper = new CallbackWrapper<TCallback, details::ArgWrapper<TArg1>>(
+		auto wrapper = new CallbackWrapper<TCallback, ::details::ArgWrapper<TArg1>>(
 			std::forward<TCallback>(callback),
-			details::ArgWrapper<TArg1>(std::forward<TArg1>(arg1))
+			::details::ArgWrapper<TArg1>(std::forward<TArg1>(arg1))
 		);
-		startThread(wrapper, &CallbackWrapper<TCallback, details::ArgWrapper<TArg1>>::callAndDelete);
+		startThread(wrapper, &CallbackWrapper<TCallback, ::details::ArgWrapper<TArg1>>::callAndDelete);
 	}
 
 	template<typename TCallback, typename TArg1, typename TArg2>
 	explicit SimpleThread(TCallback&& callback, TArg1&& arg1, TArg2&& arg2)
 	{
-		auto wrapper = new CallbackWrapper<TCallback, details::ArgWrapper<TArg1, TArg2>>(
+		auto wrapper = new CallbackWrapper<TCallback, ::details::ArgWrapper<TArg1, TArg2>>(
 			std::forward<TCallback>(callback),
-			details::ArgWrapper<TArg1, TArg2>(std::forward<TArg1>(arg1), std::forward<TArg2>(arg2))
+			::details::ArgWrapper<TArg1, TArg2>(std::forward<TArg1>(arg1), std::forward<TArg2>(arg2))
 		);
-		startThread(wrapper, &CallbackWrapper<TCallback, details::ArgWrapper<TArg1, TArg2>>::callAndDelete);
+		startThread(wrapper, &CallbackWrapper<TCallback, ::details::ArgWrapper<TArg1, TArg2>>::callAndDelete);
 	}
 
 	template<typename TCallback, typename TArg1, typename TArg2, typename TArg3>
 	explicit SimpleThread(TCallback&& callback, TArg1&& arg1, TArg2&& arg2, TArg3&& arg3)
 	{
-		auto wrapper = new CallbackWrapper<TCallback, details::ArgWrapper<TArg1, TArg2, TArg3>>(
+		auto wrapper = new CallbackWrapper<TCallback, ::details::ArgWrapper<TArg1, TArg2, TArg3>>(
 			std::forward<TCallback>(callback),
-			details::ArgWrapper<TArg1, TArg2, TArg3>(std::forward<TArg1>(arg1), std::forward<TArg2>(arg2), std::forward<TArg3>(arg3))
+			::details::ArgWrapper<TArg1, TArg2, TArg3>(std::forward<TArg1>(arg1), std::forward<TArg2>(arg2), std::forward<TArg3>(arg3))
 		);
-		startThread(wrapper, &CallbackWrapper<TCallback, details::ArgWrapper<TArg1, TArg2, TArg3>>::callAndDelete);
+		startThread(wrapper, &CallbackWrapper<TCallback, ::details::ArgWrapper<TArg1, TArg2, TArg3>>::callAndDelete);
 	}
 	
 	~SimpleThread();

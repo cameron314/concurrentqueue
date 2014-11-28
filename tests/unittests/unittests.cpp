@@ -20,7 +20,7 @@ namespace {
 	{
 		union tag {
 			std::size_t size;
-			max_align_t dummy;
+			std::max_align_t dummy;
 		};
 		
 		static inline void* malloc(std::size_t size)
@@ -2552,7 +2552,7 @@ public:
 			try {
 				q.try_dequeue_bulk(std::back_inserter(results), 4);
 			}
-			catch (ThrowingMovable* m) {
+			catch (ThrowingMovable*) {
 				threw = true;
 			}
 			ASSERT_OR_FAIL(threw);
