@@ -55,7 +55,7 @@ particular goal (i.e. it does nothing, but in an instructive way).
 		threads[i].join();
 	}
 	
-	// Collect any leftovers (could be some if consumers finish before producers)
+	// Collect any leftovers (could be some if e.g. consumers finish before producers)
 	int item;
 	while (q.try_dequeue(item)) {
 		++dequeued[item];
@@ -101,7 +101,7 @@ Same as previous example, but runs faster.
 		threads[i].join();
 	}
 	
-	// Collect any leftovers (could be some if consumers finish before producers)
+	// Collect any leftovers (could be some if e.g. consumers finish before producers)
 	int items[10];
 	std::size_t count;
 	while ((count = q.try_dequeue_bulk(items, 10)) != 0) {
@@ -120,34 +120,45 @@ Same as previous example, but runs faster.
 
 In this model, one set of threads is producing items,
 and the other is consuming them concurrently until all of
-them have been consumed.
+them have been consumed. The counters are required to
+ensure that all items eventually get consumed.
 
 	ConcurrentQueue<Item> q;
-	std::thread producers[8];
-	std::thread consumers[8];
-	std::atomic<int> done(0);
-	for (int i = 0; i != 8; ++i) {
+	const int ProducerCount = 8;
+	const int ConsumerCount = 8;
+	std::thread producers[ProducerCount];
+	std::thread consumers[ConsumerCount];
+	std::atomic<int> doneProducers(0);
+	std::atomic<int> doneConsumers(0);
+	for (int i = 0; i != ProducerCount; ++i) {
 		producers[i] = std::thread([&]() {
 			while (produce) {
 				q.enqueue(produceItem());
 			}
-			done.fetch_add(1, std::memory_order_release);
+			doneProducers.fetch_add(1, std::memory_order_release);
 		});
+	}
+	for (int i = 0; i != ConsumerCount; ++i) {
 		consumers[i] = std::thread([&]() {
 			Item item;
 			bool itemsLeft;
 			do {
-				// It's important to fence (if the producers have finished) *before* dequeuing
-				itemsLeft = done.load(std::memory_order_acquire) != 8;
+				// It's important to fence (if the producers have finished) *before* dequeueing
+				itemsLeft = doneProducers.load(std::memory_order_acquire) != ProducerCount;
 				while (q.try_dequeue(item)) {
 					itemsLeft = true;
 					consumeItem(item);
 				}
-			} while (itemsLeft);
+			} while (itemsLeft || doneConsumers.fetch_add(1, std::memory_order_acq_rel) + 1 == ConsumerCount);
+			// The condition above is a bit tricky, but it's necessary to ensure that the
+			// last consumer sees the memory effects of all the other consumers before it
+			// calls try_dequeue for the last time
 		});
 	}
-	for (int i = 0; i != 8; ++i) {
+	for (int i = 0; i != ProducerCount; ++i) {
 		producers[i].join();
+	}
+	for (int i = 0; i != ConsumerCount; ++i) {
 		consumers[i].join();
 	}
 	
@@ -170,12 +181,17 @@ them have been consumed.
 	}
 	
 	// Consumption stage
+	std::atomic<int> doneConsumers(0);
 	for (int i = 0; i != 8; ++i) {
 		threads[i] = std::thread([&]() {
 			Item item;
-			while (q.try_dequeue(item)) {
-				consumeItem(item);
-			}
+			do {
+				while (q.try_dequeue(item)) {
+					consumeItem(item);
+				}
+				// Loop again one last time if we're the last producer (with the acquired
+				// memory effects of the other producers):
+			} while (doneConsumers.fetch_add(1, std::memory_order_acq_rel) + 1 == 8);
 		});
 	}
 	for (int i = 0; i != 8; ++i) {
@@ -210,7 +226,7 @@ them have been consumed.
 	Task task;
 	while (!killThreadpool) {
 		if (!q.try_dequeue(task)) {
-			continue;
+			continue;		// Maybe sleep a bit first in real code
 		}
 		
 		// Process task...
@@ -254,21 +270,28 @@ thread after they've been enqueued).
 	while (q.try_dequeue(item)) {
 		// Process item...
 	}
-	// q is guaranteed to be empty here, unless there is another thread enqueuing still
+	// q is guaranteed to be empty here, unless there is another thread enqueueing still or
+	// there was another thread dequeueing at one point and its memory effects have not
+	// yet been propagated to this thread.
 	
 	// Multi-threaded pumping:
 	std::thread threads[8];
+	std::atomic<int> doneConsumers(0);
 	for (int i = 0; i != 8; ++i) {
 		threads[i] = std::thread([&]() {
 			Item item;
-			while (q.try_dequeue(item)) {
-				// Process item...
-			}
+			do {
+				while (q.try_dequeue(item)) {
+					// Process item...
+				}
+			} while (doneConsumers.fetch_add(1, std::memory_order_acq_rel) + 1 == 8);
 			// If there are still enqueue operations happening on other threads,
-			// then the queue may not be empty at this point. However, if all
-			// enqueue operations completed before we started pumping (and
-			// the propagation of their memory effects too), then the queue is
-			// guaranteed to be empty at this point.
+			// then the queue may not be empty at this point. However, if all enqueue
+			// operations completed before we finished pumping (and the propagation of
+			// their memory effects too), and all dequeue operations apart from those
+			// our threads did above completed before we finished pumping (and the
+			// propagation of their memory effects too), then the queue is guaranteed
+			// to be empty at this point.
 		});
 	}
 	for (int i = 0; i != 8; ++i) {
@@ -282,5 +305,5 @@ You can't (robustly) :-) However, you can set up your own atomic counter and
 poll that instead (see the game loop example). If you're satisfied with merely an estimate, you can use
 `size_approx()`. Note that `size_approx()` may return 0 even if the queue is
 not completely empty, unless the queue has already stabilized first (no threads
-are enqueueing or dequeuing, and all memory effects of any previous operations
+are enqueueing or dequeueing, and all memory effects of any previous operations
 have been propagated to the thread before it calls `size_approx()`).

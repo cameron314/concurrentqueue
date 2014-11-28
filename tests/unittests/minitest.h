@@ -90,7 +90,13 @@ protected:
 		bool result = true;
 		for (unsigned int i = 0; result && i != iterations; ++i) {
 			result = preTest();
-			result = result && (static_cast<subclass_t*>(this)->*testRef.second)();
+			try {
+				result = result && (static_cast<subclass_t*>(this)->*testRef.second)();
+			}
+			catch (...) {
+				std::printf("    FAILED!\n    ******* Unhandled exception thrown\n\n");
+				result = false;
+			}
 			result = postTest(result) && result;
 		}
 		

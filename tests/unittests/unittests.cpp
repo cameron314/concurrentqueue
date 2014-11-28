@@ -146,11 +146,83 @@ struct Copyable {
 struct Moveable {
 	Moveable(int id) : moved(false), id(id) { }
 	Moveable(Moveable const&) = delete;
-	Moveable(Moveable&& o) : moved(true), id(o.id) { }
+	Moveable(Moveable&& o) MOODYCAMEL_NOEXCEPT : moved(true), id(o.id) { }
 	void operator=(Moveable const&) = delete;
-	void operator=(Moveable&& o) { moved = true; id = o.id; }
+	void operator=(Moveable&& o) MOODYCAMEL_NOEXCEPT { moved = true; id = o.id; }
 	bool moved;
 	int id;
+};
+
+struct ThrowingMovable {
+	static std::atomic<int>& ctorCount() { static std::atomic<int> c; return c; }
+	static std::atomic<int>& destroyCount() { static std::atomic<int> c; return c; }
+	static void reset() { ctorCount() = 0; destroyCount() = 0; }
+	
+	explicit ThrowingMovable(int id, bool throwOnCctor = false, bool throwOnAssignment = false, bool throwOnSecondCctor = false)
+		: id(id), moved(false), copied(false), throwOnCctor(throwOnCctor), throwOnAssignment(throwOnAssignment), throwOnSecondCctor(throwOnSecondCctor)
+	{
+		ctorCount().fetch_add(1, std::memory_order_relaxed);
+	}
+	
+	ThrowingMovable(ThrowingMovable const& o)
+		: id(o.id), moved(false), copied(true), throwOnCctor(o.throwOnCctor), throwOnAssignment(o.throwOnAssignment), throwOnSecondCctor(false)
+	{
+		if (throwOnCctor) {
+			throw this;
+		}
+		ctorCount().fetch_add(1, std::memory_order_relaxed);
+		throwOnCctor = o.throwOnSecondCctor;
+	}
+	
+	ThrowingMovable(ThrowingMovable&& o)
+		: id(o.id), moved(true), copied(false), throwOnCctor(o.throwOnCctor), throwOnAssignment(o.throwOnAssignment), throwOnSecondCctor(false)
+	{
+		if (throwOnCctor) {
+			throw this;
+		}
+		ctorCount().fetch_add(1, std::memory_order_relaxed);
+		throwOnCctor = o.throwOnSecondCctor;
+	}
+	
+	~ThrowingMovable()
+	{
+		destroyCount().fetch_add(1, std::memory_order_relaxed);
+	}
+	
+	void operator=(ThrowingMovable const& o)
+	{
+		id = o.id;
+		moved = false;
+		copied = true;
+		throwOnCctor = o.throwOnCctor;
+		throwOnAssignment = o.throwOnAssignment;
+		throwOnSecondCctor = o.throwOnSecondCctor;
+		if (throwOnAssignment) {
+			throw this;
+		}
+	}
+	
+	void operator=(ThrowingMovable&& o)
+	{
+		id = o.id;
+		moved = true;
+		copied = false;
+		throwOnCctor = o.throwOnCctor;
+		throwOnAssignment = o.throwOnAssignment;
+		throwOnSecondCctor = o.throwOnSecondCctor;
+		if (throwOnAssignment) {
+			throw this;
+		}
+	}
+	
+	int id;
+	bool moved;
+	bool copied;
+	
+public:
+	bool throwOnCctor;
+	bool throwOnAssignment;
+	bool throwOnSecondCctor;
 };
 
 
@@ -182,6 +254,7 @@ public:
 		REGISTER_TEST(try_dequeue_bulk_threaded);
 		REGISTER_TEST(implicit_producer_hash);
 		REGISTER_TEST(index_wrapping);
+		REGISTER_TEST(exceptions);
 		REGISTER_TEST(test_threaded);
 		REGISTER_TEST(test_threaded_bulk);
 		REGISTER_TEST(full_api<ConcurrentQueueDefaultTraits>);
@@ -2001,6 +2074,577 @@ public:
 				ASSERT_OR_FAIL(item == i);
 			}
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		
+		return true;
+	}
+	
+	bool exceptions()
+	{
+		typedef TestTraits<4, 2> Traits;
+		
+		{
+			// Explicit, basic
+			// enqueue
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			ProducerToken tok(q);
+			
+			ThrowingMovable::reset();
+			
+			bool threw = false;
+			try {
+				q.enqueue(tok, ThrowingMovable(1, true));
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 1);
+				ASSERT_OR_FAIL(m->moved);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			ASSERT_OR_FAIL(q.enqueue(tok, ThrowingMovable(2)));
+			ThrowingMovable result(-1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 2);
+			ASSERT_OR_FAIL(result.moved);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 3);
+			
+			// dequeue
+			ThrowingMovable::reset();
+			q.enqueue(tok, ThrowingMovable(10));
+			q.enqueue(tok, ThrowingMovable(11, false, true));
+			q.enqueue(tok, ThrowingMovable(12));
+			ASSERT_OR_FAIL(q.size_approx() == 3);
+			
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 10);
+			threw = false;
+			try {
+				q.try_dequeue(result);
+			}
+			catch (ThrowingMovable* m) {
+				ASSERT_OR_FAIL(m->id == 11);
+				threw = true;
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 12);
+			ASSERT_OR_FAIL(result.moved);
+			
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			q.enqueue(tok, ThrowingMovable(13));
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 13);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 8);
+		}
+		
+		{
+			// Explicit, on and off block boundaries
+			// enqueue
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			ProducerToken tok(q);
+			
+			ThrowingMovable::reset();
+			
+			for (int i = 0; i != 3; ++i) {
+				q.enqueue(tok, ThrowingMovable(i));
+			}
+			bool threw = false;
+			try {
+				q.enqueue(tok, ThrowingMovable(3, true));
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 3);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 3);
+			
+			q.enqueue(tok, ThrowingMovable(4));
+			threw = false;
+			try {
+				q.enqueue(tok, ThrowingMovable(5, true));
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 5);
+				ASSERT_OR_FAIL(m->moved);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 4);
+			q.enqueue(tok, ThrowingMovable(6));
+			
+			ThrowingMovable result(-1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 0);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 2);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 4);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 6);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 12);
+			
+			// dequeue
+			ThrowingMovable::reset();
+			q.enqueue(tok, ThrowingMovable(10, false, true));
+			q.enqueue(tok, ThrowingMovable(11));
+			q.enqueue(tok, ThrowingMovable(12));
+			q.enqueue(tok, ThrowingMovable(13, false, true));
+			q.enqueue(tok, ThrowingMovable(14, false, true));
+			q.enqueue(tok, ThrowingMovable(15, false, true));
+			q.enqueue(tok, ThrowingMovable(16));
+			ASSERT_OR_FAIL(q.size_approx() == 7);
+			
+			for (int i = 10; i != 17; ++i) {
+				if (i == 10 || (i >= 13 && i <= 15)) {
+					threw = false;
+					try {
+						q.try_dequeue(result);
+					}
+					catch (ThrowingMovable* m) {
+						ASSERT_OR_FAIL(m->id == i);
+						ASSERT_OR_FAIL(m->moved);
+						threw = true;
+					}
+					ASSERT_OR_FAIL(threw);
+				}
+				else {
+					ASSERT_OR_FAIL(q.try_dequeue(result));
+					ASSERT_OR_FAIL(result.id == i);
+					ASSERT_OR_FAIL(result.moved);
+				}
+				ASSERT_OR_FAIL(q.size_approx() == (std::uint32_t)(16 - i));
+			}
+			
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			q.enqueue(tok, ThrowingMovable(20));
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 20);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 16);
+		}
+		
+		{
+			// Explicit bulk
+			// enqueue
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			ProducerToken tok(q);
+			
+			ThrowingMovable::reset();
+			std::vector<ThrowingMovable> items;
+			items.reserve(5);
+			items.push_back(ThrowingMovable(1));
+			items.push_back(ThrowingMovable(2));
+			items.push_back(ThrowingMovable(3));
+			items.push_back(ThrowingMovable(4));
+			items.push_back(ThrowingMovable(5));
+			items.back().throwOnCctor = true;
+			
+			bool threw = false;
+			try {
+				q.enqueue_bulk(tok, std::make_move_iterator(items.begin()), 5);
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 5);
+				ASSERT_OR_FAIL(m->copied);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			q.enqueue(tok, ThrowingMovable(6));
+			
+			threw = false;
+			try {
+				q.enqueue_bulk(tok, std::make_move_iterator(items.begin()), 5);
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 5);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			
+			ThrowingMovable result(-1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 6);
+			ASSERT_OR_FAIL(result.moved);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 15);
+			
+			// dequeue
+			ThrowingMovable::reset();
+			q.enqueue(tok, ThrowingMovable(10));
+			q.enqueue(tok, ThrowingMovable(11));
+			q.enqueue(tok, ThrowingMovable(12));
+			q.enqueue(tok, ThrowingMovable(13));
+			q.enqueue(tok, ThrowingMovable(14, false, true, true));		// std::back_inserter turns an assignment into a ctor call
+			q.enqueue(tok, ThrowingMovable(15));
+			ASSERT_OR_FAIL(q.size_approx() == 6);
+			
+			std::vector<ThrowingMovable> results;
+			results.reserve(4);
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(std::back_inserter(results), 2));
+			ASSERT_OR_FAIL(results.size() == 2);
+			ASSERT_OR_FAIL(results[0].id == 10);
+			ASSERT_OR_FAIL(results[1].id == 11);
+			ASSERT_OR_FAIL(results[0].moved);
+			ASSERT_OR_FAIL(results[1].moved);
+			ASSERT_OR_FAIL(q.size_approx() == 4);
+			threw = false;
+			try {
+				q.try_dequeue_bulk(std::back_inserter(results), 4);
+			}
+			catch (ThrowingMovable*) {
+				// Note: Can't inspect thrown value since it points to an object whose construction was attempted on the vector and
+				// no longer exists
+				threw = true;
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(std::back_inserter(results), 1) == 0);
+			
+			ASSERT_OR_FAIL(results.size() == 4);
+			ASSERT_OR_FAIL(results[2].id == 12);
+			ASSERT_OR_FAIL(results[3].id == 13);
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 12);
+		}
+		
+		
+		{
+			// Implicit, basic
+			// enqueue
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			
+			ThrowingMovable::reset();
+			
+			bool threw = false;
+			try {
+				q.enqueue(ThrowingMovable(1, true));
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 1);
+				ASSERT_OR_FAIL(m->moved);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			ASSERT_OR_FAIL(q.enqueue(ThrowingMovable(2)));
+			ThrowingMovable result(-1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 2);
+			ASSERT_OR_FAIL(result.moved);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 3);
+			
+			// dequeue
+			ThrowingMovable::reset();
+			q.enqueue(ThrowingMovable(10));
+			q.enqueue(ThrowingMovable(11, false, true));
+			q.enqueue(ThrowingMovable(12));
+			ASSERT_OR_FAIL(q.size_approx() == 3);
+			
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 10);
+			threw = false;
+			try {
+				q.try_dequeue(result);
+			}
+			catch (ThrowingMovable* m) {
+				ASSERT_OR_FAIL(m->id == 11);
+				threw = true;
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 12);
+			ASSERT_OR_FAIL(result.moved);
+			
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			q.enqueue(ThrowingMovable(13));
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 13);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 8);
+		}
+		
+		{
+			// Implicit, on and off block boundaries
+			// enqueue
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			
+			ThrowingMovable::reset();
+			
+			for (int i = 0; i != 3; ++i) {
+				q.enqueue(ThrowingMovable(i));
+			}
+			bool threw = false;
+			try {
+				q.enqueue(ThrowingMovable(3, true));
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 3);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 3);
+			
+			q.enqueue(ThrowingMovable(4));
+			threw = false;
+			try {
+				q.enqueue(ThrowingMovable(5, true));
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 5);
+				ASSERT_OR_FAIL(m->moved);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 4);
+			q.enqueue(ThrowingMovable(6));
+			
+			ThrowingMovable result(-1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 0);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 2);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 4);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 6);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 12);
+			
+			// dequeue
+			ThrowingMovable::reset();
+			q.enqueue(ThrowingMovable(10, false, true));
+			q.enqueue(ThrowingMovable(11));
+			q.enqueue(ThrowingMovable(12));
+			q.enqueue(ThrowingMovable(13, false, true));
+			q.enqueue(ThrowingMovable(14, false, true));
+			q.enqueue(ThrowingMovable(15, false, true));
+			q.enqueue(ThrowingMovable(16));
+			ASSERT_OR_FAIL(q.size_approx() == 7);
+			
+			for (int i = 10; i != 17; ++i) {
+				if (i == 10 || (i >= 13 && i <= 15)) {
+					threw = false;
+					try {
+						q.try_dequeue(result);
+					}
+					catch (ThrowingMovable* m) {
+						ASSERT_OR_FAIL(m->id == i);
+						ASSERT_OR_FAIL(m->moved);
+						threw = true;
+					}
+					ASSERT_OR_FAIL(threw);
+				}
+				else {
+					ASSERT_OR_FAIL(q.try_dequeue(result));
+					ASSERT_OR_FAIL(result.id == i);
+					ASSERT_OR_FAIL(result.moved);
+				}
+				ASSERT_OR_FAIL(q.size_approx() == (std::uint32_t)(16 - i));
+			}
+			
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			q.enqueue(ThrowingMovable(20));
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 20);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 16);
+		}
+		
+		{
+			// Impplicit bulk
+			// enqueue
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			
+			ThrowingMovable::reset();
+			std::vector<ThrowingMovable> items;
+			items.reserve(5);
+			items.push_back(ThrowingMovable(1));
+			items.push_back(ThrowingMovable(2));
+			items.push_back(ThrowingMovable(3));
+			items.push_back(ThrowingMovable(4));
+			items.push_back(ThrowingMovable(5));
+			items.back().throwOnCctor = true;
+			
+			bool threw = false;
+			try {
+				q.enqueue_bulk(std::make_move_iterator(items.begin()), 5);
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 5);
+				ASSERT_OR_FAIL(m->copied);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			q.enqueue(ThrowingMovable(6));
+			
+			threw = false;
+			try {
+				q.enqueue_bulk(std::make_move_iterator(items.begin()), 5);
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+				ASSERT_OR_FAIL(m->id == 5);
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			
+			ThrowingMovable result(-1);
+			ASSERT_OR_FAIL(q.try_dequeue(result));
+			ASSERT_OR_FAIL(result.id == 6);
+			ASSERT_OR_FAIL(result.moved);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 15);
+			
+			// dequeue
+			ThrowingMovable::reset();
+			q.enqueue(ThrowingMovable(10));
+			q.enqueue(ThrowingMovable(11));
+			q.enqueue(ThrowingMovable(12));
+			q.enqueue(ThrowingMovable(13));
+			q.enqueue(ThrowingMovable(14, false, true, true));		// std::back_inserter turns an assignment into a ctor call
+			q.enqueue(ThrowingMovable(15));
+			ASSERT_OR_FAIL(q.size_approx() == 6);
+			
+			std::vector<ThrowingMovable> results;
+			results.reserve(4);
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(std::back_inserter(results), 2));
+			ASSERT_OR_FAIL(results.size() == 2);
+			ASSERT_OR_FAIL(results[0].id == 10);
+			ASSERT_OR_FAIL(results[1].id == 11);
+			ASSERT_OR_FAIL(results[0].moved);
+			ASSERT_OR_FAIL(results[1].moved);
+			ASSERT_OR_FAIL(q.size_approx() == 4);
+			threw = false;
+			try {
+				q.try_dequeue_bulk(std::back_inserter(results), 4);
+			}
+			catch (ThrowingMovable* m) {
+				threw = true;
+			}
+			ASSERT_OR_FAIL(threw);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(!q.try_dequeue(result));
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(std::back_inserter(results), 1) == 0);
+			
+			ASSERT_OR_FAIL(results.size() == 4);
+			ASSERT_OR_FAIL(results[2].id == 12);
+			ASSERT_OR_FAIL(results[3].id == 13);
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() == 12);
+		}
+		
+		{
+			// Threaded
+			ConcurrentQueue<ThrowingMovable, Traits> q;
+			ThrowingMovable::reset();
+			
+			std::vector<SimpleThread> threads(6);
+			for (std::size_t tid = 0; tid != threads.size(); ++tid) {
+				threads[tid] = SimpleThread([&](std::size_t tid) {
+					std::vector<ThrowingMovable> inVec;
+					inVec.push_back(ThrowingMovable(1));
+					inVec.push_back(ThrowingMovable(2));
+					inVec.push_back(ThrowingMovable(3));
+					
+					std::vector<ThrowingMovable> outVec;
+					outVec.push_back(ThrowingMovable(-1));
+					outVec.push_back(ThrowingMovable(-1));
+					outVec.push_back(ThrowingMovable(-1));
+					
+					ProducerToken tok(q);
+					ThrowingMovable result(-1);
+					
+					for (std::size_t i = 0; i != 8192; ++i) {
+						auto magic = (tid + 1) * i + tid * 17 + i;
+						auto op = magic & 7;
+						auto ctorThrow = (magic & 0x10) != 0;
+						auto assignThrow = (magic & 0x20) != 0;
+						auto throwOnNextCctor = (magic & 0x40) != 0;
+						try {
+							switch (op) {
+							case 0:
+								q.enqueue(tok, ThrowingMovable((int)i, ctorThrow, assignThrow, throwOnNextCctor));
+								break;
+							case 1:
+								inVec[i & 3].throwOnCctor = ctorThrow;
+								inVec[i & 3].throwOnAssignment = assignThrow;
+								inVec[i & 3].throwOnSecondCctor = throwOnNextCctor;
+								q.enqueue_bulk(tok, inVec.begin(), 3);
+								break;
+							case 2:
+								q.enqueue(ThrowingMovable((int)i, ctorThrow, assignThrow, throwOnNextCctor));
+								break;
+							case 3:
+								inVec[i & 3].throwOnCctor = ctorThrow;
+								inVec[i & 3].throwOnAssignment = assignThrow;
+								inVec[i & 3].throwOnSecondCctor = throwOnNextCctor;
+								q.enqueue_bulk(inVec.begin(), 3);
+								break;
+							case 4:
+							case 5:
+								q.try_dequeue(result);
+								break;
+							case 6:
+							case 7:
+								q.try_dequeue_bulk(outVec.data(), 3);
+								break;
+							}
+						}
+						catch (ThrowingMovable*) {
+						}
+					}
+				}, tid);
+			}
+			for (std::size_t i = 0; i != threads.size(); ++i) {
+				threads[i].join();
+			}
+			
+			ThrowingMovable result(-1);
+			while (true) {
+				try {
+					if (!q.try_dequeue(result)) {
+						break;
+					}
+				}
+				catch (ThrowingMovable*) {
+				}
+			}
+			
+			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() + 1 == ThrowingMovable::ctorCount());
 		}
 		
 		return true;

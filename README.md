@@ -15,6 +15,7 @@ Note: If all you need is a single-producer, single-consumer queue, I have [one o
 - Memory can be allocated once up-front, or dynamically as needed.
 - Fully portable (no assembly; all is done through the standard C++11 primitives).
 - Supports super-fast bulk operations.
+- Exception safe.
 
 ## Reasons to use
 
@@ -50,20 +51,22 @@ come of the queue in the same order they were put in *relative to the ordering f
 your use case, you may be better off with another implementation; either way, it's an important limitation
 to be aware of.
 
-Note also that the implementation is (presently) **not exception safe**, so if you use exceptions, make sure that
-they can't be thrown from within the constructor and assignment operator of your object type. The
-queue itself never throws any exceptions (even for memory allocation failures, which it handles gracefully).
-
 My queue is also **not NUMA aware**, and does a lot of memory re-use internally, meaning it probably doesn't
 scale particularly well on NUMA architectures; however, I don't know of any other lock-free queue that *is*
 NUMA aware (except for [SALSA][salsa], which is very cool, but has no publicly available implementation that I know of).
 
+Finally, the queue is not sequentially consistent; there is a happens-before relationship between when an element is put
+in the queue and when it comes out, but other things (such as pumping the queue until it's empty) require more thought
+to get right in all eventualities, because memory ordering has to be taken into account. In other words, it can sometimes
+be difficult to use the queue correctly. This is why it's a good idea to follow the [samples][samples.md] where possible.
+On the other hand, the upside of this lack of sequential consistency is better performance.
+
 ## High-level design
 
 Elements are stored internally using contiguous blocks instead of linked lists for better performance.
-The queue is made up of a collection of sub-queues, one for each producer thread. When a
-consumer wants to dequeue an element, it checks all the sub-queues until it finds one.
-All of this is largely transparent to the user of the queue, however -- it just works<sup>TM</sup>.
+The queue is made up of a collection of sub-queues, one for each producer. When a consumer
+wants to dequeue an element, it checks all the sub-queues until it finds one that's not empty.
+All of this is largely transparent to the user of the queue, however -- it mostly just works<sup>TM</sup>.
 
 One particular consequence of this design (which seems to be non-intuitive) is that if two producers
 enqueue at the same time, there is no defined ordering between the elements when they're later dequeued.
@@ -72,7 +75,7 @@ threads and so you couldn't rely on the ordering anyway. However, if for some re
 between the two producer threads yourself, thus defining a total order between enqueue operations, you might expect
 that the elements would come out in the same total order, which is a guarantee my queue does not offer. At that
 point, though, there semantically aren't really two separate producers, but rather one that happens to be spread
-across two threads. In this case, you can still establish a total ordering with my queue by creating
+across multiple threads. In this case, you can still establish a total ordering with my queue by creating
 a single producer token, and using that from both threads to enqueue (taking care to synchronize access to the token,
 of course, but there was already extra synchronization involved anyway).
 
@@ -112,7 +115,7 @@ Description of basic methods:
 - `try_dequeue(T& item)`
       Dequeues one item, returning true if an item was found or false if the queue appeared empty
 
-Note that it is up to the user to ensure that the object is completely constructed before
+Note that it is up to the user to ensure that the queue object is completely constructed before
 being used by any other threads (this includes making the memory effects of construction
 visible, possibly via a memory barrier). Similarly, it's important that all threads have
 finished using the queue (and the memory effects have fully propagated) before it is
@@ -147,26 +150,9 @@ Full API (pseudocode):
 
 ## Advanced features
 
-#### Bulk operations
+#### Tokens
 
-Thanks to the [novel design][blog] of the queue, it's just as easy to enqueue/dequeue multiple
-items as it is to do one at a time. This means that overhead can be cut drastically for
-bulk operations. Example syntax:
-
-    moodycamel::ConcurrentQueue<int> q;
-
-	int items[] = { 1, 2, 3, 4, 5 };
-    q.enqueue_bulk(items, 5);
-    
-    int results[5];		// Could also be any iterator
-    size_t count = q.try_dequeue_bulk(results, 5);
-    for (size_t i = 0; i != count; ++i) {
-    	assert(results[i] == items[i]);
-    }
-    
-#### Task-specific tokens
-
-Additionally, the queue can take advantage of having thread-local data if
+The queue can take advantage of having thread-local data if
 it's available. This takes the form of "tokens": you can create a consumer
 token and/or a producer token for each thread or task, and use the methods
 that accept a token as their first parameter:
@@ -191,9 +177,57 @@ When producing or consuming many elements, the most efficient way is to:
 3. Failing that, use the single-item methods with tokens
 4. Failing that, use the single-item methods without tokens
 
-Having said that, don't create tokens willy-nilly -- ideally there should be
-a maximum of one token (of each kind) per thread. The queue will do its best
-with what it is given, but it performs best when passed tokens.
+Having said that, don't create tokens willy-nilly -- ideally there would be
+one token (of each kind) per thread. The queue will work with what it is
+given, but it performs best when used with tokens.
+
+Note that tokens aren't actually tied to any given thread; it's not technically
+required that they be local to the thread, only that they be used by a single
+producer/consumer at a time.
+
+#### Bulk operations
+
+Thanks to the [novel design][blog] of the queue, it's just as easy to enqueue/dequeue multiple
+items as it is to do one at a time. This means that overhead can be cut drastically for
+bulk operations. Example syntax:
+
+    moodycamel::ConcurrentQueue<int> q;
+
+    int items[] = { 1, 2, 3, 4, 5 };
+    q.enqueue_bulk(items, 5);
+    
+    int results[5];     // Could also be any iterator
+    size_t count = q.try_dequeue_bulk(results, 5);
+    for (size_t i = 0; i != count; ++i) {
+        assert(results[i] == items[i]);
+    }
+
+#### Exception safety
+
+The queue is exception safe, and will never become corrupted if used with a type that may throw exceptions.
+The queue itself never throws any exceptions (operations fail gracefully (return false) if memory allocation
+fails instead of throwing `std::bad_alloc`).
+
+It is important to note that the guarantees of exception safety only hold if the element type never throws
+from its destructor, and that any iterators passed into the queue (for bulk operations) never throw either.
+Note that in particular this means `std::back_inserter` iterators must be used with care, since the vector
+being inserted into may need to allocate and throw a `std::bad_alloc` exception from inside the iterator;
+so be sure to reserve enough capacity in the target container first if you do this.
+
+The guarantees are presently as follows:
+- Enqueue operations are rolled back completely if an exception is thrown from an element's constructor.
+  For bulk enqueue operations, this means that elements are copied instead of moved (in order to avoid
+  having only some of the objects be moved in the event of an exception). Non-bulk enqueues always use
+  the move constructor if one is available.
+- If the assignment operator throws during a dequeue operation (both single and bulk), the element(s) are
+  considered dequeued regardless. In such a case, the dequeued elements are all properly destructed before
+  the exception is propagated, but there's no way to get the elements themselves back.
+- Any exception that is thrown is propagated up the call stack, at which point the queue is in a consistent
+  state.
+
+Note: If any of your type's copy constructors/move constructors/assignment operators don't throw, be sure
+to annotate them with `noexcept`; this will avoid the exception-checking overhead in the queue where possible
+(even with zero-cost exceptions, there's still a code size impact that has to be taken into account).
 
 #### Traits
 
@@ -269,7 +303,8 @@ a unit test for it can be cooked up.) Just open an issue on GitHub.
 ## License
 
 I'm releasing the source of this repository (with the exception of third-party code, i.e. the Boost queue
-(used in the benchmarks for comparison), Intel's TBB library (ditto), CDSChecker, and Relacy, which have their own licenses) under a [simplified BSD license][license].
+(used in the benchmarks for comparison), Intel's TBB library (ditto), CDSChecker, and Relacy, which have their own licenses)
+under a [simplified BSD license][license].
 
 Note that lock-free programming is a patent minefield, and this code may very
 well violate a pending patent (I haven't looked), though it does not to my present knowledge.
@@ -277,8 +312,8 @@ I did design and implement this queue from scratch.
 
 ## Diving into the code
 
-If you're interesting in the source code itself, it helps to have a rough idea of how it's laid out. This
-section attempts to describe that for those interested.
+If you're interested in the source code itself, it helps to have a rough idea of how it's laid out. This
+section attempts to describe that.
 
 The queue is formed of several basic parts (listed here in roughly the order they appear in the source). There's the
 helper functions (e.g. for rounding to a power of 2). There's the default traits of the queue, which contain the
