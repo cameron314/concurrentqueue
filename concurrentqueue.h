@@ -80,7 +80,7 @@ namespace moodycamel { namespace details {
 #define MOODYCAMEL_CATCH(...) catch(__VA_ARGS__)
 #define MOODYCAMEL_RETHROW throw
 #else
-#define MOODYCAMEL_TRY if (false)
+#define MOODYCAMEL_TRY if (true)
 #define MOODYCAMEL_CATCH(...) else if (false)
 #define MOODYCAMEL_RETHROW
 #endif
