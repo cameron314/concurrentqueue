@@ -1248,7 +1248,7 @@ private:
 				// Set flags
 				std::atomic_thread_fence(std::memory_order_release);
 				i = BLOCK_SIZE - 1 - static_cast<size_t>(i & static_cast<index_t>(BLOCK_SIZE - 1)) - count + 1;
-				for (auto j = 0; j != count; ++j) {
+				for (size_t j = 0; j != count; ++j) {
 					assert(!emptyFlags[i + j].load(std::memory_order_relaxed));
 					emptyFlags[i + j].store(true, std::memory_order_relaxed);
 				}
