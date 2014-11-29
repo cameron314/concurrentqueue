@@ -72,8 +72,26 @@ namespace moodycamel { namespace details {
 } }
 #endif
 
+// Exceptions
+#ifndef MOODYCAMEL_EXCEPTIONS_ENABLED
+#if (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
+#define MOODYCAMEL_EXCEPTIONS_ENABLED
+#define MOODYCAMEL_TRY try
+#define MOODYCAMEL_CATCH(...) catch(__VA_ARGS__)
+#define MOODYCAMEL_RETHROW throw
+#else
+#define MOODYCAMEL_TRY if (false)
+#define MOODYCAMEL_CATCH(...) else if (false)
+#define MOODYCAMEL_RETHROW
+#endif
+#endif
+
 #ifndef MOODYCAMEL_NOEXCEPT
-#if defined(_MSC_VER) && defined(_NOEXCEPT) && _MSC_VER < 1900
+#if !defined(MOODYCAMEL_EXCEPTIONS_ENABLED)
+#define MOODYCAMEL_NOEXCEPT
+#define MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr) true
+#define MOODYCAMEL_NOEXCEPT_ASSIGN(type, valueType, expr) true
+#elif defined(_MSC_VER) && defined(_NOEXCEPT) && _MSC_VER < 1900
 #define MOODYCAMEL_NOEXCEPT _NOEXCEPT
 #define MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr) (std::is_rvalue_reference<valueType>::value && std::is_move_constructible<type>::value ? std::is_trivially_move_constructible<type>::value || std::is_nothrow_move_constructible<type>::value : std::is_trivially_copy_constructible<type>::value || std::is_nothrow_copy_constructible<type>::value)
 #define MOODYCAMEL_NOEXCEPT_ASSIGN(type, valueType, expr) ((std::is_rvalue_reference<valueType>::value && std::is_move_assignable<type>::value ? std::is_trivially_move_assignable<type>::value || std::is_nothrow_move_assignable<type>::value : std::is_trivially_copy_assignable<type>::value || std::is_nothrow_copy_assignable<type>::value) && MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr))
@@ -1518,15 +1536,15 @@ private:
 				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
 					// The constructor may throw. We want the element not to appear in the queue in
 					// that case (without corrupting the queue):
-					try {
+					MOODYCAMEL_TRY {
 						new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element));
 					}
-					catch (...) {
+					MOODYCAMEL_CATCH (...) {
 						// Revert change to the current block, but leave the new block available
 						// for next time
 						pr_blockIndexSlotsUsed = originalBlockIndexSlotsUsed;
 						this->tailBlock = startBlock == nullptr ? this->tailBlock : startBlock;
-						throw;
+						MOODYCAMEL_RETHROW;
 					}
 				}
 				else {
@@ -1766,7 +1784,7 @@ private:
 					}
 				}
 				else {
-					try {
+					MOODYCAMEL_TRY {
 						while (currentTailIndex != stopIndex) {
 							// Must use copy constructor even if move constructor is available
 							// because we may have to revert if there's an exception.
@@ -1780,7 +1798,7 @@ private:
 							++itemFirst;
 						}
 					}
-					catch (...) {
+					MOODYCAMEL_CATCH (...) {
 						// Oh dear, an exception's been thrown -- destroy the elements that
 						// were enqueued so far and revert the entire bulk operation (we'll keep
 						// any allocated blocks in our linked list for later, though).
@@ -1811,7 +1829,7 @@ private:
 								block = block->next;
 							}
 						}
-						throw;
+						MOODYCAMEL_RETHROW;
 					}
 				}
 				
@@ -1880,7 +1898,7 @@ private:
 							}
 						}
 						else {
-							try {
+							MOODYCAMEL_TRY {
 								while (index != endIndex) {
 									auto& el = *((*block)[index]);
 									*itemFirst = std::move(el);
@@ -1889,7 +1907,7 @@ private:
 									++index;
 								}
 							}
-							catch (...) {
+							MOODYCAMEL_CATCH (...) {
 								// It's too late to revert the dequeue, but we can make sure that all
 								// the dequeued objects are properly destroyed and the block index
 								// (and empty count) are properly updated before we propagate the exception
@@ -1906,7 +1924,7 @@ private:
 									endIndex = details::circular_less_than<index_t>(firstIndex + static_cast<index_t>(actualCount), endIndex) ? firstIndex + static_cast<index_t>(actualCount) : endIndex;
 								} while (index != firstIndex + actualCount);
 								
-								throw;
+								MOODYCAMEL_RETHROW;
 							}
 						}
 						block->template set_many_empty<explicit_context>(firstIndexInBlock, static_cast<size_t>(endIndex - firstIndexInBlock));
@@ -2091,14 +2109,14 @@ private:
 				
 				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
 					// May throw, try to insert now before we publish the fact that we have this new block
-					try {
+					MOODYCAMEL_TRY {
 						new ((*newBlock)[currentTailIndex]) T(std::forward<U>(element));
 					}
-					catch (...) {
+					MOODYCAMEL_CATCH (...) {
 						rewind_block_index_tail();
 						idxEntry->value.store(nullptr, std::memory_order_relaxed);
 						this->parent->add_block_to_free_list(newBlock);
-						throw;
+						MOODYCAMEL_RETHROW;
 					}
 				}
 				
@@ -2285,14 +2303,14 @@ private:
 					}
 				}
 				else {
-					try {
+					MOODYCAMEL_TRY {
 						while (currentTailIndex != stopIndex) {
 							new ((*this->tailBlock)[currentTailIndex]) T(details::nomove_if<(bool)!MOODYCAMEL_NOEXCEPT_CTOR(T, decltype(*itemFirst), new (nullptr) T(details::deref_noexcept(itemFirst)))>::eval(*itemFirst));
 							++currentTailIndex;
 							++itemFirst;
 						}
 					}
-					catch (...) {
+					MOODYCAMEL_CATCH (...) {
 						auto constructedStopIndex = currentTailIndex;
 						auto lastBlockEnqueued = this->tailBlock;
 						
@@ -2326,7 +2344,7 @@ private:
 						}
 						this->parent->add_blocks_to_free_list(firstAllocatedBlock);
 						this->tailBlock = startBlock;
-						throw;
+						MOODYCAMEL_RETHROW;
 					}
 				}
 				
@@ -2385,7 +2403,7 @@ private:
 							}
 						}
 						else {
-							try {
+							MOODYCAMEL_TRY {
 								while (index != endIndex) {
 									auto& el = *((*block)[index]);
 									*itemFirst = std::move(el);
@@ -2394,7 +2412,7 @@ private:
 									++index;
 								}
 							}
-							catch (...) {
+							MOODYCAMEL_CATCH (...) {
 								do {
 									entry = localBlockIndex->index[indexIndex];
 									block = entry->value.load(std::memory_order_relaxed);
@@ -2416,7 +2434,7 @@ private:
 									endIndex = details::circular_less_than<index_t>(firstIndex + static_cast<index_t>(actualCount), endIndex) ? firstIndex + static_cast<index_t>(actualCount) : endIndex;
 								} while (index != firstIndex + actualCount);
 								
-								throw;
+								MOODYCAMEL_RETHROW;
 							}
 						}
 						if (block->template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
