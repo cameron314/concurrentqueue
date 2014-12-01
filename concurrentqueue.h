@@ -184,6 +184,12 @@ struct ConcurrentQueueDefaultTraits
 	// internal queue.
 	static const std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = 256;
 	
+	// The maximum number of elements (inclusive) that can be enqueued to a sub-queue.
+	// Enqueue operations that would cause this limit to be surpassed will fail. Note
+	// that this limit is enforced at the block level (for performance reasons), i.e.
+	// it's rounded up to the nearest block size.
+	static const size_t MAX_SUBQUEUE_SIZE = std::numeric_limits<size_t>::max();
+	
 	
 	// Memory allocation can be customized if needed.
 	// malloc should return nullptr on failure, and handle alignment like std::malloc.
@@ -468,6 +474,7 @@ public:
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = static_cast<size_t>(Traits::IMPLICIT_INITIAL_INDEX_SIZE);
 	static const size_t INITIAL_IMPLICIT_PRODUCER_HASH_SIZE = static_cast<size_t>(Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE);
 	static const std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = static_cast<std::uint32_t>(Traits::EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE);
+	static const size_t MAX_SUBQUEUE_SIZE = static_cast<size_t>(Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1) < Traits::MAX_SUBQUEUE_SIZE ? std::numeric_limits<size_t>::max() : (Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1) / BLOCK_SIZE * BLOCK_SIZE));
 	
 	static_assert(!std::numeric_limits<size_t>::is_signed && std::is_integral<size_t>::value, "Traits::size_t must be an unsigned integral type");
 	static_assert(!std::numeric_limits<index_t>::is_signed && std::is_integral<index_t>::value, "Traits::index_t must be an unsigned integral type");
@@ -627,7 +634,8 @@ private:
 public:
 	// Enqueues a single item (by copying it).
 	// Allocates memory if required. Only fails if memory allocation fails (or implicit
-	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
+	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0,
+	// or Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
 	// Thread-safe.
 	inline bool enqueue(T const& item)
 	{
@@ -637,7 +645,8 @@ public:
 	
 	// Enqueues a single item (by moving it, if possible).
 	// Allocates memory if required. Only fails if memory allocation fails (or implicit
-	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
+	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0,
+	// or Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
 	// Thread-safe.
 	inline bool enqueue(T&& item)
 	{
@@ -646,7 +655,8 @@ public:
 	}
 	
 	// Enqueues a single item (by copying it) using an explicit producer token.
-	// Allocates memory if required. Only fails if memory allocation fails.
+	// Allocates memory if required. Only fails if memory allocation fails (or
+	// Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T const& item)
 	{
@@ -654,7 +664,8 @@ public:
 	}
 	
 	// Enqueues a single item (by moving it, if possible) using an explicit producer token.
-	// Allocates memory if required. Only fails if memory allocation fails.
+	// Allocates memory if required. Only fails if memory allocation fails (or
+	// Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T&& item)
 	{
@@ -663,9 +674,9 @@ public:
 	
 	// Enqueues several items.
 	// Allocates memory if required. Only fails if memory allocation fails (or
-	// implicit production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
-	// Note: Use std::make_move_iterator if the elements should be moved
-	// instead of copied.
+	// implicit production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE
+	// is 0, or Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
+	// Note: Use std::make_move_iterator if the elements should be moved instead of copied.
 	// Thread-safe.
 	template<typename It>
 	bool enqueue_bulk(It itemFirst, size_t count)
@@ -675,7 +686,8 @@ public:
 	}
 	
 	// Enqueues several items using an explicit producer token.
-	// Allocates memory if required. Only fails if memory allocation fails.
+	// Allocates memory if required. Only fails if memory allocation fails
+	// (or Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
 	// Note: Use std::make_move_iterator if the elements should be moved
 	// instead of copied.
 	// Thread-safe.
@@ -687,7 +699,8 @@ public:
 	
 	// Enqueues a single item (by copying it).
 	// Does not allocate memory. Fails if not enough room to enqueue (or implicit
-	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE is 0).
+	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE
+	// is 0).
 	// Thread-safe.
 	inline bool try_enqueue(T const& item)
 	{
@@ -1495,11 +1508,16 @@ private:
 					// a block, a block index must have been successfully allocated.
 				}
 				else {
-					// Whatever head value we see here is >= the last value we saw here (relatively)
+					// Whatever head value we see here is >= the last value we saw here (relatively),
+					// and <= its current value. Since we have the most recent tail, the head must be
+					// <= to it.
 					auto head = this->headIndex.load(std::memory_order_relaxed);
-					if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE)) {
+					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
+					if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE)
+						|| (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
 						// We can't enqueue in another block because there's not enough leeway -- the
-						// tail could surpass the head by the time the block fills up!
+						// tail could surpass the head by the time the block fills up! (Or we'll exceed
+						// the size limit, if the second part of the condition was true.)
 						return false;
 					}
 					// We're going to need a new block; check that the block index has room
@@ -1702,8 +1720,10 @@ private:
 					currentTailIndex += static_cast<index_t>(BLOCK_SIZE);
 					
 					auto head = this->headIndex.load(std::memory_order_relaxed);
-					if (pr_blockIndexRaw == nullptr || pr_blockIndexSlotsUsed == pr_blockIndexSize || !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE)) {
-						if (allocMode == CannotAlloc || !new_block_index(originalBlockIndexSlotsUsed)) {
+					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
+					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
+					if (pr_blockIndexRaw == nullptr || pr_blockIndexSlotsUsed == pr_blockIndexSize || full) {
+						if (allocMode == CannotAlloc || full || !new_block_index(originalBlockIndexSlotsUsed)) {
 							// Failed to allocate, undo changes (but keep injected blocks)
 							pr_blockIndexFront = originalBlockIndexFront;
 							pr_blockIndexSlotsUsed = originalBlockIndexSlotsUsed;
@@ -2083,7 +2103,8 @@ private:
 			if ((currentTailIndex & static_cast<index_t>(BLOCK_SIZE - 1)) == 0) {
 				// We reached the end of a block, start a new one
 				auto head = this->headIndex.load(std::memory_order_relaxed);
-				if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE)) {
+				assert(!details::circular_less_than<index_t>(currentTailIndex, head));
+				if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
 					return false;
 				}
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
@@ -2243,7 +2264,9 @@ private:
 					Block* newBlock;
 					bool indexInserted = false;
 					auto head = this->headIndex.load(std::memory_order_relaxed);
-					if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || !(indexInserted = insert_block_index_entry<allocMode>(idxEntry, currentTailIndex)) || (newBlock = this->parent->requisition_block<allocMode>()) == nullptr) {
+					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
+					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
+					if (full || !(indexInserted = insert_block_index_entry<allocMode>(idxEntry, currentTailIndex)) || (newBlock = this->parent->requisition_block<allocMode>()) == nullptr) {
 						// Index allocation or block allocation failed; revert any other allocations
 						// and index insertions done so far for this operation
 						if (indexInserted) {
