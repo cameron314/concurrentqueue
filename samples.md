@@ -197,7 +197,47 @@ ensure that all items eventually get consumed.
 	for (int i = 0; i != 8; ++i) {
 		threads[i].join();
 	}
-	
+
+
+## Threads unknown in advance
+
+If you don't know what threads will be using the queue in advance,
+you can't really declare any long-term tokens. The obvious solution
+is to use the implicit methods (that don't take any tokens), which
+is fine if the number of producer threads is fixed. However, if the
+producer threads are constantly being created (e.g. in a model that
+does not use a thread pool but rather just starts a new thread for
+each task), then this can slow things down considerably, since each
+implicit enqueue operation generally creates a thread-local producer
+-- so over time the number of implicit producer sub-queues can in theory
+grow without bound, taking extra memory and making dequeue operations
+very slow. In such a case, it's better to use short-lived explicit
+producer tokens than no tokens at all -- explicit producers created
+this way will are reused when the token is allocated. Example scenario:
+
+    // A pool of 'Something' objects that can be accessed
+    // from any thread, and does not slow down over time if
+    // used with many threads (e.g. if new threads are constantly
+    // created instead of reused).
+    class SomethingPool
+    {
+    public:
+	    Something getSomething()
+	    {
+	    	Something obj;
+	    	if (queue.try_dequeue(tok, obj)) {
+	    		return obj;
+	    	}
+	    	return Something();
+	    }
+	    
+	    void recycleSomething(Something&& obj)
+	    {
+	    	ProducerToken tok(queue);
+	    	queue.enqueue(tok, std::move(obj));
+	    }
+    };
+
 
 ## Threadpool task queue
 

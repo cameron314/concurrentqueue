@@ -55,10 +55,10 @@ My queue is also **not NUMA aware**, and does a lot of memory re-use internally,
 scale particularly well on NUMA architectures; however, I don't know of any other lock-free queue that *is*
 NUMA aware (except for [SALSA][salsa], which is very cool, but has no publicly available implementation that I know of).
 
-Finally, the queue is not sequentially consistent; there is a happens-before relationship between when an element is put
+Finally, the queue is **not sequentially consistent**; there *is* a happens-before relationship between when an element is put
 in the queue and when it comes out, but other things (such as pumping the queue until it's empty) require more thought
-to get right in all eventualities, because memory ordering has to be taken into account. In other words, it can sometimes
-be difficult to use the queue correctly. This is why it's a good idea to follow the [samples][samples.md] where possible.
+to get right in all eventualities, because explicit memory ordering may have to be done to get the desired effect. In other words,
+it can sometimes be difficult to use the queue correctly. This is why it's a good idea to follow the [samples][samples.md] where possible.
 On the other hand, the upside of this lack of sequential consistency is better performance.
 
 ## High-level design
@@ -68,7 +68,7 @@ The queue is made up of a collection of sub-queues, one for each producer. When 
 wants to dequeue an element, it checks all the sub-queues until it finds one that's not empty.
 All of this is largely transparent to the user of the queue, however -- it mostly just works<sup>TM</sup>.
 
-One particular consequence of this design (which seems to be non-intuitive) is that if two producers
+One particular consequence of this design, however, (which seems to be non-intuitive) is that if two producers
 enqueue at the same time, there is no defined ordering between the elements when they're later dequeued.
 Normally this is fine, because even with a fully linearizable queue there'd be a race between the producer
 threads and so you couldn't rely on the ordering anyway. However, if for some reason you do extra explicit synchronization
@@ -88,7 +88,7 @@ nitty-gritty details of the design][design], on my blog. Finally, the
 The entire queue's implementation is contained in **one header**, [`concurrentqueue.h`][concurrentqueue.h].
 Simply download and include that to use the queue.
 The implementation makes use of certain key C++11 features, so it requires a fairly recent compiler
-(e.g. g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
+(e.g. VS2013 or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
 The code itself is platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
@@ -120,6 +120,18 @@ being used by any other threads (this includes making the memory effects of cons
 visible, possibly via a memory barrier). Similarly, it's important that all threads have
 finished using the queue (and the memory effects have fully propagated) before it is
 destructed.
+
+There's usually two versions of each method, one "explicit" version that takes a user-allocated per-producer or
+per-consumer token, and one "implicit" version that works without tokens. Using the explicit methods is almost
+always faster (though not necessarily by a huge factor). Apart from performance, the primary distinction between them
+is their sub-queue allocation behaviour for enqueue operations: Using the implicit enqueue methods causes an
+automatically-allocated thread-local producer sub-queue to be allocated, which is tied to that thread forever; if the
+thread exits, that sub-queue is not reused unless another thread happens to be allocated at the same memory address
+(or with the same thread ID on Windows). Explicit producers, on the other hand, are tied directly to their tokens'
+lifetimes, and are recycled as needed. So, if you enqueue from an unknown number of threads and are creating many
+threads over time (which you normally shouldn't have anyway, as it's a sign that a thread-pool might work better),
+it's a better idea to use the explicit enqueue methods with producer tokens (even if those tokens are temporary local
+variables) to prevent performance degradation over the long term.
 
 Full API (pseudocode):
 
