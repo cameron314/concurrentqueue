@@ -21,9 +21,9 @@ namespace {
 		union tag {
 			std::size_t size;
 #ifdef __GNUC__
-			max_align_t dummy;	// They forgot to add it to std:: for a while
+			max_align_t dummy;		// GCC forgot to add it to std:: for a while
 #else
-			std::max_align_t dummy;
+			std::max_align_t dummy;	// Others (e.g. MSVC) insist it can *only* be accessed via std::
 #endif
 		};
 		
@@ -67,8 +67,14 @@ using namespace moodycamel;
 
 namespace moodycamel
 {
+struct MallocTrackingTraits : public ConcurrentQueueDefaultTraits
+{
+	static inline void* malloc(std::size_t size) { return tracking_allocator::malloc(size); }
+	static inline void free(void* ptr) { tracking_allocator::free(ptr); }
+};
+
 template<std::size_t BlockSize = ConcurrentQueueDefaultTraits::BLOCK_SIZE, std::size_t InitialIndexSize = ConcurrentQueueDefaultTraits::EXPLICIT_INITIAL_INDEX_SIZE>
-struct TestTraits : public ConcurrentQueueDefaultTraits
+struct TestTraits : public MallocTrackingTraits
 {
 	typedef std::size_t size_t;
 	typedef uint64_t index_t;
@@ -87,22 +93,16 @@ struct TestTraits : public ConcurrentQueueDefaultTraits
 	static inline void free(void* obj) { ++_free_count(); return tracking_allocator::free(obj); }
 };
 
-struct SmallIndexTraits : public ConcurrentQueueDefaultTraits
+struct SmallIndexTraits : public MallocTrackingTraits
 {
 	typedef uint16_t size_t;
 	typedef uint16_t index_t;
-	
-	static inline void* malloc(std::size_t size) { return tracking_allocator::malloc(size); }
-	static inline void free(void* ptr) { tracking_allocator::free(ptr); }
 };
 
-struct ExtraSmallIndexTraits : public ConcurrentQueueDefaultTraits
+struct ExtraSmallIndexTraits : public MallocTrackingTraits
 {
 	typedef uint8_t size_t;
 	typedef uint8_t index_t;
-	
-	static inline void* malloc(std::size_t size) { return tracking_allocator::malloc(size); }
-	static inline void free(void* ptr) { tracking_allocator::free(ptr); }
 };
 
 // Note: Not thread safe!
@@ -258,6 +258,7 @@ public:
 		REGISTER_TEST(try_dequeue_bulk_threaded);
 		REGISTER_TEST(implicit_producer_hash);
 		REGISTER_TEST(index_wrapping);
+		REGISTER_TEST(subqueue_size_limit);
 		REGISTER_TEST(exceptions);
 		REGISTER_TEST(test_threaded);
 		REGISTER_TEST(test_threaded_bulk);
@@ -283,14 +284,14 @@ public:
 	
 	bool create_empty_queue()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		return true;
 	}
 	
 	
 	bool create_token()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		ProducerToken tok(q);
 		
 		return true;
@@ -408,7 +409,7 @@ public:
 	
 	bool enqueue_one_explicit()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		ProducerToken tok(q);
 		
 		bool result = q.enqueue(tok, 17);
@@ -419,7 +420,7 @@ public:
 	
 	bool enqueue_and_dequeue_one_explicit()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		ProducerToken tok(q);
 		
 		int item = 0;
@@ -432,7 +433,7 @@ public:
 	
 	bool enqueue_one_implicit()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		
 		bool result = q.enqueue(17);
 		
@@ -442,7 +443,7 @@ public:
 	
 	bool enqueue_and_dequeue_one_implicit()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		
 		int item = 0;
 		ASSERT_OR_FAIL(q.enqueue(123));
@@ -1535,7 +1536,7 @@ public:
 	
 	bool try_dequeue()
 	{
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		int item;
 		
 		// Producer token
@@ -1622,7 +1623,7 @@ public:
 	bool try_dequeue_threaded()
 	{
 		int item;
-		ConcurrentQueue<int> q;
+		ConcurrentQueue<int, MallocTrackingTraits> q;
 		
 		// Threaded consumption with tokens
 		{
@@ -1987,7 +1988,7 @@ public:
 	bool implicit_producer_hash()
 	{
 		for (int j = 0; j != 5; ++j) {
-			ConcurrentQueue<int> q;
+			ConcurrentQueue<int, MallocTrackingTraits> q;
 			std::vector<SimpleThread> threads;
 			for (int i = 0; i != 20; ++i) {
 				threads.push_back(SimpleThread([&]() {
@@ -2078,6 +2079,126 @@ public:
 				ASSERT_OR_FAIL(item == i);
 			}
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		
+		return true;
+	}
+	
+	struct SizeLimitTraits : public MallocTrackingTraits
+	{
+		static const size_t BLOCK_SIZE = 2;
+		static const size_t MAX_SUBQUEUE_SIZE = 5;		// Will round up to 6 because of block size
+	};
+	
+	bool subqueue_size_limit()
+	{
+		{
+			// Explicit
+			ConcurrentQueue<int, SizeLimitTraits> q;
+			ProducerToken t(q);
+			int item;
+			
+			ASSERT_OR_FAIL(q.enqueue(t, 1));
+			ASSERT_OR_FAIL(q.enqueue(t, 2));
+			ASSERT_OR_FAIL(q.enqueue(t, 3));
+			ASSERT_OR_FAIL(q.enqueue(t, 4));
+			ASSERT_OR_FAIL(q.enqueue(t, 5));
+			ASSERT_OR_FAIL(q.enqueue(t, 6));
+			ASSERT_OR_FAIL(!q.enqueue(t, 7));
+			ASSERT_OR_FAIL(!q.enqueue(t, 8));
+			
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 1);
+			ASSERT_OR_FAIL(!q.enqueue(t, 7));		// Can't reuse block until it's completely empty
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 2);
+			ASSERT_OR_FAIL(q.enqueue(t, 7));
+			ASSERT_OR_FAIL(q.enqueue(t, 8));
+			ASSERT_OR_FAIL(!q.enqueue(t, 9));
+			
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 3);
+			ASSERT_OR_FAIL(!q.enqueue(t, 9));
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 4);
+			ASSERT_OR_FAIL(q.enqueue(t, 9));
+			
+			for (int i = 5; i <= 9; ++i) {
+				ASSERT_OR_FAIL(q.try_dequeue(item) && item == i);
+			}
+			ASSERT_OR_FAIL(q.enqueue(t, 10));
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 10);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+			for (int i = 0; i != 6; ++i) {
+				ASSERT_OR_FAIL(q.try_enqueue(t, i));
+			}
+			ASSERT_OR_FAIL(!q.try_enqueue(t, 7));
+			ASSERT_OR_FAIL(!q.enqueue(t, 7));
+			
+			// Bulk
+			int items[6];
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(items, 6) == 6);
+			ASSERT_OR_FAIL(!q.try_enqueue_bulk(t, items, 7));
+			ASSERT_OR_FAIL(!q.enqueue_bulk(t, items, 7));
+			ASSERT_OR_FAIL(q.enqueue_bulk(t, items, 6));
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(items, 6) == 6);
+			ASSERT_OR_FAIL(q.enqueue_bulk(t, items, 3));
+			ASSERT_OR_FAIL(!q.enqueue_bulk(t, items, 4));
+			ASSERT_OR_FAIL(q.enqueue_bulk(t, items, 3));
+			ASSERT_OR_FAIL(!q.enqueue_bulk(t, items, 1));
+			ASSERT_OR_FAIL(!q.enqueue(t, 100));
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(items, 1) == 1);
+			ASSERT_OR_FAIL(!q.enqueue(t, 100));
+		}
+		
+		{
+			// Implicit
+			ConcurrentQueue<int, SizeLimitTraits> q;
+			int item;
+			
+			ASSERT_OR_FAIL(q.enqueue(1));
+			ASSERT_OR_FAIL(q.enqueue(2));
+			ASSERT_OR_FAIL(q.enqueue(3));
+			ASSERT_OR_FAIL(q.enqueue(4));
+			ASSERT_OR_FAIL(q.enqueue(5));
+			ASSERT_OR_FAIL(q.enqueue(6));
+			ASSERT_OR_FAIL(!q.enqueue(7));
+			ASSERT_OR_FAIL(!q.enqueue(8));
+			
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 1);
+			ASSERT_OR_FAIL(!q.enqueue(7));		// Can't reuse block until it's completely empty
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 2);
+			ASSERT_OR_FAIL(q.enqueue(7));
+			ASSERT_OR_FAIL(q.enqueue(8));
+			ASSERT_OR_FAIL(!q.enqueue(9));
+			
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 3);
+			ASSERT_OR_FAIL(!q.enqueue(9));
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 4);
+			ASSERT_OR_FAIL(q.enqueue(9));
+			
+			for (int i = 5; i <= 9; ++i) {
+				ASSERT_OR_FAIL(q.try_dequeue(item) && item == i);
+			}
+			ASSERT_OR_FAIL(q.enqueue(10));
+			ASSERT_OR_FAIL(q.try_dequeue(item) && item == 10);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+			for (int i = 0; i != 6; ++i) {
+				ASSERT_OR_FAIL(q.try_enqueue(i));
+			}
+			ASSERT_OR_FAIL(!q.try_enqueue(7));
+			ASSERT_OR_FAIL(!q.enqueue(7));
+			
+			// Bulk
+			int items[6];
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(items, 6) == 6);
+			ASSERT_OR_FAIL(!q.try_enqueue_bulk(items, 7));
+			ASSERT_OR_FAIL(!q.enqueue_bulk(items, 7));
+			ASSERT_OR_FAIL(q.enqueue_bulk(items, 6));
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(items, 6) == 6);
+			ASSERT_OR_FAIL(q.enqueue_bulk(items, 3));
+			ASSERT_OR_FAIL(!q.enqueue_bulk(items, 4));
+			ASSERT_OR_FAIL(q.enqueue_bulk(items, 3));
+			ASSERT_OR_FAIL(!q.enqueue_bulk(items, 1));
+			ASSERT_OR_FAIL(!q.enqueue(100));
+			ASSERT_OR_FAIL(q.try_dequeue_bulk(items, 1) == 1);
+			ASSERT_OR_FAIL(!q.enqueue(100));
 		}
 		
 		return true;
@@ -3260,7 +3381,7 @@ public:
 		
 		// moving
 		{
-			ConcurrentQueue<int> q(4);
+			ConcurrentQueue<int, MallocTrackingTraits> q(4);
 			ProducerToken t(q);
 			for (int i = 0; i != 1233; ++i) {
 				q.enqueue(i);
@@ -3270,7 +3391,7 @@ public:
 			}
 			ASSERT_OR_FAIL(q.size_approx() == 5677);
 			
-			ConcurrentQueue<int> q2(std::move(q));
+			ConcurrentQueue<int, MallocTrackingTraits> q2(std::move(q));
 			ASSERT_OR_FAIL(q.size_approx() == 0);
 			ASSERT_OR_FAIL(q2.size_approx() == 5677);
 			
@@ -3301,7 +3422,7 @@ public:
 		
 		// swapping
 		{
-			ConcurrentQueue<int> q1, q2, q3;
+			ConcurrentQueue<int, MallocTrackingTraits> q1, q2, q3;
 			ProducerToken t1(q1), t2(q2), t3(q3);
 			
 			for (int i = 1234; i != 5678; ++i) {
@@ -3325,7 +3446,7 @@ public:
 			}
 			
 			{
-				ConcurrentQueue<int> temp;
+				ConcurrentQueue<int, MallocTrackingTraits> temp;
 				temp = std::move(q1);
 				q1 = std::move(q2);
 				q2 = std::move(temp);

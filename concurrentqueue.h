@@ -474,7 +474,7 @@ public:
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = static_cast<size_t>(Traits::IMPLICIT_INITIAL_INDEX_SIZE);
 	static const size_t INITIAL_IMPLICIT_PRODUCER_HASH_SIZE = static_cast<size_t>(Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE);
 	static const std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = static_cast<std::uint32_t>(Traits::EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE);
-	static const size_t MAX_SUBQUEUE_SIZE = static_cast<size_t>(Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1) < Traits::MAX_SUBQUEUE_SIZE ? std::numeric_limits<size_t>::max() : (Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1) / BLOCK_SIZE * BLOCK_SIZE));
+	static const size_t MAX_SUBQUEUE_SIZE = static_cast<size_t>(Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1) <= Traits::MAX_SUBQUEUE_SIZE ? std::numeric_limits<size_t>::max() : ((Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1)) / BLOCK_SIZE * BLOCK_SIZE));
 	
 	static_assert(!std::numeric_limits<size_t>::is_signed && std::is_integral<size_t>::value, "Traits::size_t must be an unsigned integral type");
 	static_assert(!std::numeric_limits<index_t>::is_signed && std::is_integral<index_t>::value, "Traits::index_t must be an unsigned integral type");
