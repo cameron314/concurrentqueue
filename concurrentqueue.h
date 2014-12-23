@@ -136,8 +136,18 @@ namespace moodycamel { namespace details {
 #pragma GCC diagnostic ignored "-Wconversion"
 #endif
 
-
 namespace moodycamel {
+namespace details {
+	template<typename T>
+	struct const_numeric_max {
+		static_assert(std::is_integral<T>::value, "const_numeric_max can only be used with integers");
+		static const T value = std::numeric_limits<T>::is_signed
+			? (static_cast<T>(1) << (sizeof(T) * CHAR_BIT - 1)) - static_cast<T>(1)
+			: static_cast<T>(-1);
+	};
+}
+
+
 // Default traits for the ConcurrentQueue. To change some of the
 // traits without re-implementing all of them, inherit from this
 // struct and shadow the declarations you wish to be different;
@@ -198,7 +208,7 @@ struct ConcurrentQueueDefaultTraits
 	// Enqueue operations that would cause this limit to be surpassed will fail. Note
 	// that this limit is enforced at the block level (for performance reasons), i.e.
 	// it's rounded up to the nearest block size.
-	static const size_t MAX_SUBQUEUE_SIZE = std::numeric_limits<size_t>::max();
+	static const size_t MAX_SUBQUEUE_SIZE = details::const_numeric_max<size_t>::value;
 	
 	
 	// Memory allocation can be customized if needed.
@@ -544,8 +554,16 @@ public:
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = static_cast<size_t>(Traits::IMPLICIT_INITIAL_INDEX_SIZE);
 	static const size_t INITIAL_IMPLICIT_PRODUCER_HASH_SIZE = static_cast<size_t>(Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE);
 	static const std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = static_cast<std::uint32_t>(Traits::EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE);
-	static const size_t MAX_SUBQUEUE_SIZE = static_cast<size_t>(Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1) <= Traits::MAX_SUBQUEUE_SIZE ? std::numeric_limits<size_t>::max() : ((Traits::MAX_SUBQUEUE_SIZE + (BLOCK_SIZE - 1)) / BLOCK_SIZE * BLOCK_SIZE));
-	
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4307)		// + integral constant overflow (that's what the ternary expression is for!)
+#pragma warning(disable: 4309)		// static_cast: Truncation of constant value
+#endif
+	static const size_t MAX_SUBQUEUE_SIZE = (details::const_numeric_max<size_t>::value - static_cast<size_t>(Traits::MAX_SUBQUEUE_SIZE) < BLOCK_SIZE) ? details::const_numeric_max<size_t>::value : ((static_cast<size_t>(Traits::MAX_SUBQUEUE_SIZE) + (BLOCK_SIZE - 1)) / BLOCK_SIZE * BLOCK_SIZE);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 	static_assert(!std::numeric_limits<size_t>::is_signed && std::is_integral<size_t>::value, "Traits::size_t must be an unsigned integral type");
 	static_assert(!std::numeric_limits<index_t>::is_signed && std::is_integral<index_t>::value, "Traits::index_t must be an unsigned integral type");
 	static_assert(sizeof(index_t) >= sizeof(size_t), "Traits::index_t must be at least as wide as Traits::size_t");
@@ -1583,7 +1601,7 @@ private:
 					auto head = this->headIndex.load(std::memory_order_relaxed);
 					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
 					if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE)
-						|| (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
+						|| (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
 						// We can't enqueue in another block because there's not enough leeway -- the
 						// tail could surpass the head by the time the block fills up! (Or we'll exceed
 						// the size limit, if the second part of the condition was true.)
@@ -1790,7 +1808,7 @@ private:
 					
 					auto head = this->headIndex.load(std::memory_order_relaxed);
 					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
-					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
+					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
 					if (pr_blockIndexRaw == nullptr || pr_blockIndexSlotsUsed == pr_blockIndexSize || full) {
 						if (allocMode == CannotAlloc || full || !new_block_index(originalBlockIndexSlotsUsed)) {
 							// Failed to allocate, undo changes (but keep injected blocks)
@@ -2180,7 +2198,7 @@ private:
 				// We reached the end of a block, start a new one
 				auto head = this->headIndex.load(std::memory_order_relaxed);
 				assert(!details::circular_less_than<index_t>(currentTailIndex, head));
-				if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
+				if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
 					return false;
 				}
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
@@ -2341,7 +2359,7 @@ private:
 					bool indexInserted = false;
 					auto head = this->headIndex.load(std::memory_order_relaxed);
 					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
-					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE + 1 != 0 && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
+					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
 					if (full || !(indexInserted = insert_block_index_entry<allocMode>(idxEntry, currentTailIndex)) || (newBlock = this->parent->requisition_block<allocMode>()) == nullptr) {
 						// Index allocation or block allocation failed; revert any other allocations
 						// and index insertions done so far for this operation
