@@ -1200,7 +1200,6 @@ public:
 					ASSERT_OR_FAIL(seenIds[i]);
 				}
 				ASSERT_OR_FAIL(Traits::malloc_count() <= 2 * MAX_THREADS + 1);
-				ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());	
 			}
 		}
 		ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());	
@@ -1212,7 +1211,7 @@ public:
 			std::vector<SimpleThread> threads(32);
 			std::vector<bool> success(threads.size(), true);
 			for (std::size_t tid = 0; tid != threads.size(); ++tid) {
-				threads[tid] = SimpleThread([](std::size_t tid) {
+				threads[tid] = SimpleThread([&](std::size_t tid) {
 					for (int i = 0; i != 5; ++i) {
 						ConcurrentQueue<int, MallocTrackingTraits> q(1);
 						q.enqueue(i);
@@ -1229,7 +1228,7 @@ public:
 						}
 					}
 					if (q.size_approx() != 0) {
-						success[tid] = false
+						success[tid] = false;
 					}
 				}, tid);
 			}
