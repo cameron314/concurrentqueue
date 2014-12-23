@@ -50,7 +50,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void
 namespace moodycamel { namespace details {
 	static_assert(sizeof(unsigned long) == sizeof(std::uint32_t), "Expected size of unsigned long to be 32 bits on Windows");
 	typedef std::uint32_t thread_id_t;
-	static const thread_id_t invalid_thread_id = 0;		// See http://blogs.msdn.com/b/oldnewthing/archive/2004/02/23/78395.aspx
+	static const thread_id_t invalid_thread_id  = 0;			// See http://blogs.msdn.com/b/oldnewthing/archive/2004/02/23/78395.aspx
+	static const thread_id_t invalid_thread_id2 = 0xFFFFFFFFU;	// Not technically guaranteed to be invalid, but is never used in practice. Note that all Win32 thread IDs are presently multiples of 4.
 	static inline thread_id_t thread_id() { return static_cast<thread_id_t>(::GetCurrentThreadId()); }
 } }
 #else
@@ -67,7 +68,8 @@ namespace moodycamel { namespace details {
 #endif
 namespace moodycamel { namespace details {
 	typedef std::uintptr_t thread_id_t;
-	static const thread_id_t invalid_thread_id = 0;		// Address can't be nullptr
+	static const thread_id_t invalid_thread_id  = 0;		// Address can't be nullptr
+	static const thread_id_t invalid_thread_id2 = 1;		// Member accesses off a null pointer are also generally invalid. Plus it's not aligned.
 	static inline thread_id_t thread_id() { static MOODYCAMEL_THREADLOCAL int x; return reinterpret_cast<thread_id_t>(&x); }
 } }
 #endif
@@ -99,6 +101,14 @@ namespace moodycamel { namespace details {
 #define MOODYCAMEL_NOEXCEPT noexcept
 #define MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr) noexcept(expr)
 #define MOODYCAMEL_NOEXCEPT_ASSIGN(type, valueType, expr) noexcept(expr)
+#endif
+#endif
+
+#ifndef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+// VS2013 doesn't support `thread_local`, and MinGW-w64 w/ POSIX threading has a crippling bug: http://sourceforge.net/p/mingw-w64/bugs/445
+#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__))
+// Assume `thread_local` is fully supported in all other C++11 compilers/runtimes
+#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 #endif
 #endif
 
@@ -336,6 +346,66 @@ namespace details
 	{
 		return *it;
 	}
+	
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+	struct ThreadExitListener
+	{
+		typedef void (*callback_t)(void*);
+		callback_t callback;
+		void* userData;
+		
+		ThreadExitListener* next;		// reserved for use by the ThreadExitNotifier
+	};
+	
+	
+	class ThreadExitNotifier
+	{
+	public:
+		static void subscribe(ThreadExitListener* listener)
+		{
+			auto& tlsInst = instance();
+			listener->next = tlsInst.tail;
+			tlsInst.tail = listener;
+		}
+		
+		static void unsubscribe(ThreadExitListener* listener)
+		{
+			auto& tlsInst = instance();
+			ThreadExitListener** prev = &tlsInst.tail;
+			for (auto ptr = tlsInst.tail; ptr != nullptr; ptr = ptr->next) {
+				if (ptr == listener) {
+					*prev = ptr->next;
+					break;
+				}
+				prev = &ptr->next;
+			}
+		}
+		
+	private:
+		ThreadExitNotifier() : tail(nullptr) { }
+		ThreadExitNotifier(ThreadExitNotifier const&) = delete;
+		ThreadExitNotifier& operator=(ThreadExitNotifier const&) = delete;
+		
+		~ThreadExitNotifier()
+		{
+			// This thread is about to exit, let everyone know!
+			assert(this == &instance() && "If this assert fails, you likely have a buggy compiler! Change the preprocessor conditions such that MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED is no longer defined.");
+			for (auto ptr = tail; ptr != nullptr; ptr = ptr->next) {
+				ptr->callback(ptr->userData);
+			}
+		}
+		
+		// Thread-local
+		static inline ThreadExitNotifier& instance()
+		{
+			static thread_local ThreadExitNotifier notifier;
+			return notifier;
+		}
+		
+	private:
+		ThreadExitListener* tail;
+	};
+	#endif
 	
 	template<typename T> struct static_is_lock_free_num { enum { value = 0 }; };
 	template<> struct static_is_lock_free_num<signed char> { enum { value = ATOMIC_CHAR_LOCK_FREE }; };
@@ -1343,8 +1413,8 @@ private:
 			headIndex(0),
 			dequeueOptimisticCount(0),
 			dequeueOvercommit(0),
-			isExplicit(isExplicit),
 			tailBlock(nullptr),
+			isExplicit(isExplicit),
 			parent(parent)
 		{
 		}
@@ -1390,11 +1460,10 @@ private:
 		std::atomic<index_t> dequeueOptimisticCount;
 		std::atomic<index_t> dequeueOvercommit;
 		
-		bool isExplicit;
-		
 		Block* tailBlock;
 		
 	public:
+		bool isExplicit;
 		ConcurrentQueue* parent;
 		
 	protected:
@@ -2054,6 +2123,13 @@ private:
 			// contiguous blocks, and that only the first and last remaining blocks can be only partially
 			// empty (all other remaining blocks must be completely full).
 			
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+			// Unregister ourselves for thread termination notification
+			if (!this->inactive.load(std::memory_order_relaxed)) {
+				details::ThreadExitNotifier::unsubscribe(&threadExitListener);
+			}
+#endif
+			
 			// Destroy all remaining elements!
 			auto tail = this->tailIndex.load(std::memory_order_relaxed);
 			auto index = this->headIndex.load(std::memory_order_relaxed);
@@ -2608,7 +2684,13 @@ private:
 	private:
 		size_t nextBlockIndexCapacity;
 		std::atomic<BlockIndexHeader*> blockIndex;
-		
+
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+	public:
+		details::ThreadExitListener threadExitListener;
+	private:
+#endif
+
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 		mutable debug::DebugMutex mutex;
 #endif
@@ -2804,14 +2886,14 @@ private:
 	// Producer list manipulation
 	//////////////////////////////////	
 	
-	ProducerBase* producer_for_new_token()
+	ProducerBase* recycle_or_create_producer(bool isExplicit)
 	{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
 		// Try to re-use one first
 		for (auto ptr = producerListTail.load(std::memory_order_acquire); ptr != nullptr; ptr = ptr->next_prod()) {
-			if (ptr->inactive.load(std::memory_order_relaxed)) {
+			if (ptr->inactive.load(std::memory_order_relaxed) && ptr->isExplicit == isExplicit) {
 				bool expected = true;
 				if (ptr->inactive.compare_exchange_strong(expected, /* desired */ false, std::memory_order_acquire, std::memory_order_relaxed)) {
 					// We caught one! It's been marked as activated, the caller can have it
@@ -2820,7 +2902,7 @@ private:
 			}
 		}
 		
-		return add_producer(create<ExplicitProducer>(this));
+		return add_producer(isExplicit ? static_cast<ProducerBase*>(create<ExplicitProducer>(this)) : create<ImplicitProducer>(this));
 	}
 	
 	ProducerBase* add_producer(ProducerBase* producer)
@@ -2983,8 +3065,14 @@ private:
 						while (true) {
 							index &= mainHash->capacity - 1;
 							probedKey = mainHash->entries[index].key.load(std::memory_order_relaxed);
-							auto expected = details::invalid_thread_id;
-							if (probedKey == expected && mainHash->entries[index].key.compare_exchange_strong(expected, id, std::memory_order_relaxed)) {
+							auto empty = details::invalid_thread_id;
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+							auto reusable = details::invalid_thread_id2;
+							if ((probedKey == empty    && mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_relaxed)) ||
+								(probedKey == reusable && mainHash->entries[index].key.compare_exchange_strong(reusable, id, std::memory_order_acquire))) {
+#else
+							if ((probedKey == empty    && mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_relaxed))) {
+#endif
 								mainHash->entries[index].value = value;
 								break;
 							}
@@ -3039,21 +3127,34 @@ private:
 			// to finish being allocated by another thread (and if we just finished allocating above, the condition will
 			// always be true)
 			if (newCount < (mainHash->capacity >> 1) + (mainHash->capacity >> 2)) {
-				auto producer = create<ImplicitProducer>(this);
+				auto producer = static_cast<ImplicitProducer*>(recycle_or_create_producer(false));
 				if (producer == nullptr) {
 					return nullptr;
 				}
-				add_producer(producer);
+				
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+				producer->threadExitListener.callback = &ConcurrentQueue::implicit_producer_thread_exited_callback;
+				producer->threadExitListener.userData = producer;
+				details::ThreadExitNotifier::subscribe(&producer->threadExitListener);
+#endif
 				
 				auto index = hashedId;
 				while (true) {
 					index &= mainHash->capacity - 1;
 					auto probedKey = mainHash->entries[index].key.load(std::memory_order_relaxed);
-					auto expected = details::invalid_thread_id;
-					if (probedKey == expected && mainHash->entries[index].key.compare_exchange_strong(expected, id, std::memory_order_relaxed)) {
+					auto empty = details::invalid_thread_id;
+					if (probedKey == empty && mainHash->entries[index].key.compare_exchange_strong(empty, id, std::memory_order_relaxed)) {
 						mainHash->entries[index].value = producer;
 						break;
 					}
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+					auto reusable = details::invalid_thread_id2;
+					if (probedKey == reusable && mainHash->entries[index].key.compare_exchange_strong(reusable, id, std::memory_order_acquire)) {
+						implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
+						mainHash->entries[index].value = producer;
+						break;
+					}
+#endif
 					++index;
 				}
 				return producer;
@@ -3066,6 +3167,43 @@ private:
 		}
 	}
 	
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+	void implicit_producer_thread_exited(ImplicitProducer* producer)
+	{
+		// Remove from thread exit listeners
+		details::ThreadExitNotifier::unsubscribe(&producer->threadExitListener);
+		
+		// Remove from hash
+#if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
+		debug::DebugLock lock(implicitProdMutex);
+#endif
+		// Only need to remove from main table (as that's the only one that new inserts could go into)
+		auto hash = implicitProducerHash.load(std::memory_order_acquire);
+		assert(hash != nullptr);		// The thread exit listener is only registered if we were added to a hash in the first place
+		auto id = details::thread_id();
+		auto index = details::hash_thread_id(id);
+		details::thread_id_t probedKey;
+		do {
+			index &= hash->capacity - 1;
+			probedKey = hash->entries[index].key.load(std::memory_order_relaxed);
+			if (probedKey == id) {
+				hash->entries[index].key.store(details::invalid_thread_id2, std::memory_order_release);
+				break;
+			}
+			++index;
+		} while (probedKey != details::invalid_thread_id);		// Can happen if the hash has changed but we weren't put back in it yet
+		
+		// Mark the queue as being recyclable
+		producer->inactive.store(true, std::memory_order_release);
+	}
+	
+	static void implicit_producer_thread_exited_callback(void* userData)
+	{
+		auto producer = static_cast<ImplicitProducer*>(userData);
+		auto queue = producer->parent;
+		queue->implicit_producer_thread_exited(producer);
+	}
+#endif
 	
 	//////////////////////////////////
 	// Utility functions
@@ -3152,7 +3290,7 @@ private:
 
 template<typename T, typename Traits>
 ProducerToken::ProducerToken(ConcurrentQueue<T, Traits>& queue)
-	: producer(queue.producer_for_new_token())
+	: producer(queue.recycle_or_create_producer(true))
 {
 	if (producer != nullptr) {
 		producer->token = this;

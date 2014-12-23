@@ -1092,7 +1092,7 @@ public:
 			}
 		}
 		
-		ASSERT_OR_FAIL(Traits::malloc_count() == 11 || Traits::malloc_count() == 3);		// 2 for each producer (depending on thread ID re-use) + 1 for initial block pool
+		ASSERT_OR_FAIL(Traits::malloc_count() <= 11 && Traits::malloc_count() >= 3);		// 2 for each producer (depending on thread ID re-use) + 1 for initial block pool
 		ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());
 		
 		return true;
@@ -1101,9 +1101,10 @@ public:
 	bool producer_reuse()
 	{
 		typedef TestTraits<16> Traits;
-		Traits::reset();
 		
+		Traits::reset();
 		{
+			// Explicit
 			ConcurrentQueue<int, Traits> q;
 			
 			{
@@ -1140,6 +1141,105 @@ public:
 		
 		ASSERT_OR_FAIL(Traits::malloc_count() == 9);		// 2 for max number of live producers + 1 for initial block pool
 		ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());
+		
+#ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+		Traits::reset();
+		{
+			// Implicit
+			const int MAX_THREADS = 48;
+			ConcurrentQueue<int, Traits> q(Traits::BLOCK_SIZE * (MAX_THREADS + 1));
+			ASSERT_OR_FAIL(Traits::malloc_count() == 1);		// Initial block pool
+			
+			SimpleThread t0([&]() { q.enqueue(0); });
+			t0.join();
+			ASSERT_OR_FAIL(Traits::malloc_count() == 3);		// Implicit producer
+			
+			SimpleThread t1([&]() { q.enqueue(1); });
+			t1.join();
+			ASSERT_OR_FAIL(Traits::malloc_count() == 3);
+			
+			SimpleThread t2([&]() { q.enqueue(2); });
+			t2.join();
+			ASSERT_OR_FAIL(Traits::malloc_count() == 3);
+			
+			q.enqueue(3);
+			ASSERT_OR_FAIL(Traits::malloc_count() == 3);
+			
+			int item;
+			int i = 0;
+			while (q.try_dequeue(item)) {
+				ASSERT_OR_FAIL(item == i);
+				++i;
+			}
+			ASSERT_OR_FAIL(i == 4);
+			ASSERT_OR_FAIL(Traits::malloc_count() == 3);
+			
+			std::vector<SimpleThread> threads(MAX_THREADS);
+			for (int rep = 0; rep != 2; ++rep) {
+				for (std::size_t tid = 0; tid != threads.size(); ++tid) {
+					threads[tid] = SimpleThread([&](std::size_t tid) {
+						for (volatile int i = 0; i != 4096; ++i) {
+							continue;
+						}
+						q.enqueue((int)tid);
+						for (volatile int i = 0; i != 4096; ++i) {
+							continue;
+						}
+					}, tid);
+				}
+				for (std::size_t tid = 0; tid != threads.size(); ++tid) {
+					threads[tid].join();
+				}
+				std::vector<bool> seenIds(threads.size());
+				for (std::size_t i = 0; i != threads.size(); ++i) {
+					ASSERT_OR_FAIL(q.try_dequeue(item));
+					ASSERT_OR_FAIL(!seenIds[item]);
+					seenIds[item] = true;
+				}
+				for (std::size_t i = 0; i != seenIds.size(); ++i) {
+					ASSERT_OR_FAIL(seenIds[i]);
+				}
+				ASSERT_OR_FAIL(Traits::malloc_count() <= 2 * MAX_THREADS + 1);
+				ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());	
+			}
+		}
+		ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());	
+		
+		
+		Traits::reset();
+		{
+			// Test many threads and implicit queues being created and destroyed concurrently
+			std::vector<SimpleThread> threads(32);
+			std::vector<bool> success(threads.size(), true);
+			for (std::size_t tid = 0; tid != threads.size(); ++tid) {
+				threads[tid] = SimpleThread([](std::size_t tid) {
+					for (int i = 0; i != 5; ++i) {
+						ConcurrentQueue<int, MallocTrackingTraits> q(1);
+						q.enqueue(i);
+					}
+					
+					ConcurrentQueue<int, MallocTrackingTraits> q(15);
+					for (int i = 0; i != 100; ++i) {
+						q.enqueue(i);
+					}
+					int item;
+					for (int i = 0; i != 100; ++i) {
+						if (!q.try_dequeue(item) || item != i) {
+							success[tid] = false;
+						}
+					}
+					if (q.size_approx() != 0) {
+						success[tid] = false
+					}
+				}, tid);
+			}
+			for (std::size_t tid = 0; tid != threads.size(); ++tid) {
+				threads[tid].join();
+				ASSERT_OR_FAIL(success[tid]);
+			}
+		}
+		ASSERT_OR_FAIL(Traits::free_count() == Traits::malloc_count());	
+#endif
 		
 		return true;
 	}

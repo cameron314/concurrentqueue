@@ -125,13 +125,8 @@ There's usually two versions of each method, one "explicit" version that takes a
 per-consumer token, and one "implicit" version that works without tokens. Using the explicit methods is almost
 always faster (though not necessarily by a huge factor). Apart from performance, the primary distinction between them
 is their sub-queue allocation behaviour for enqueue operations: Using the implicit enqueue methods causes an
-automatically-allocated thread-local producer sub-queue to be allocated, which is tied to that thread forever; if the
-thread exits, that sub-queue is not reused unless another thread happens to be allocated at the same memory address
-(or with the same thread ID on Windows). Explicit producers, on the other hand, are tied directly to their tokens'
-lifetimes, and are recycled as needed. So, if you enqueue from an unknown number of threads and are creating many
-threads over time (which you normally shouldn't have anyway, as it's a sign that a thread-pool might work better),
-it's a better idea to use the explicit enqueue methods with producer tokens (even if those tokens are temporary local
-variables) to prevent performance degradation over the long term.
+automatically-allocated thread-local producer sub-queue to be allocated (it is marked for reuse once the thread exits).
+Explicit producers, on the other hand, are tied directly to their tokens' lifetimes (and are also recycled as needed).
 
 Full API (pseudocode):
 
