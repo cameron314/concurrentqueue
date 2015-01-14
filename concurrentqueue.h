@@ -1096,27 +1096,27 @@ private:
 	template<AllocationMode canAlloc, typename U>
 	inline bool inner_enqueue(producer_token_t const& token, U&& element)
 	{
-		return static_cast<ExplicitProducer*>(token.producer)->template enqueue<canAlloc>(std::forward<U>(element));
+		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue<canAlloc>(std::forward<U>(element));
 	}
 	
 	template<AllocationMode canAlloc, typename U>
 	inline bool inner_enqueue(U&& element)
 	{
 		auto producer = get_or_add_implicit_producer();
-		return producer == nullptr ? false : producer->template enqueue<canAlloc>(std::forward<U>(element));
+		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue<canAlloc>(std::forward<U>(element));
 	}
 	
 	template<AllocationMode canAlloc, typename It>
 	inline bool inner_enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
-		return static_cast<ExplicitProducer*>(token.producer)->template enqueue_bulk<canAlloc>(std::forward<It>(itemFirst), count);
+		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue_bulk<canAlloc>(std::forward<It>(itemFirst), count);
 	}
 	
 	template<AllocationMode canAlloc, typename It>
 	inline bool inner_enqueue_bulk(It itemFirst, size_t count)
 	{
 		auto producer = get_or_add_implicit_producer();
-		return producer == nullptr ? false : producer->template enqueue_bulk<canAlloc>(std::forward<It>(itemFirst), count);
+		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue_bulk<canAlloc>(std::forward<It>(itemFirst), count);
 	}
 	
 	inline bool update_current_producer_after_rotation(consumer_token_t& token)
@@ -1535,7 +1535,7 @@ private:
 				auto block = this->tailBlock;
 				do {
 					block = block->next;
-					if (block->template is_empty<explicit_context>()) {
+					if (block->ConcurrentQueue::Block::template is_empty<explicit_context>()) {
 						continue;
 					}
 					
@@ -1583,10 +1583,10 @@ private:
 				// We reached the end of a block, start a new one
 				auto startBlock = this->tailBlock;
 				auto originalBlockIndexSlotsUsed = pr_blockIndexSlotsUsed;
-				if (this->tailBlock != nullptr && this->tailBlock->next->template is_empty<explicit_context>()) {
+				if (this->tailBlock != nullptr && this->tailBlock->next->ConcurrentQueue::Block::template is_empty<explicit_context>()) {
 					// We can re-use the block ahead of us, it's empty!					
 					this->tailBlock = this->tailBlock->next;
-					this->tailBlock->template reset_empty<explicit_context>();
+					this->tailBlock->ConcurrentQueue::Block::template reset_empty<explicit_context>();
 					
 					// We'll put the block on the block index (guaranteed to be room since we're conceptually removing the
 					// last block from it first -- except instead of removing then adding, we can just overwrite).
@@ -1626,7 +1626,7 @@ private:
 #if MCDBGQ_TRACKMEM
 					newBlock->owner = this;
 #endif
-					newBlock->template reset_empty<explicit_context>();
+					newBlock->ConcurrentQueue::Block::template reset_empty<explicit_context>();
 					if (this->tailBlock == nullptr) {
 						newBlock->next = newBlock;
 					}
@@ -1747,7 +1747,7 @@ private:
 							~Guard()
 							{
 								(*block)[index]->~T();
-								block->template set_empty<explicit_context>(index);
+								block->ConcurrentQueue::Block::template set_empty<explicit_context>(index);
 							}
 						} guard = { block, index };
 						
@@ -1756,7 +1756,7 @@ private:
 					else {
 						element = std::move(el);
 						el.~T();
-						block->template set_empty<explicit_context>(index);
+						block->ConcurrentQueue::Block::template set_empty<explicit_context>(index);
 					}
 					
 					return true;
@@ -1788,7 +1788,7 @@ private:
 			index_t currentTailIndex = (startTailIndex - 1) & ~static_cast<index_t>(BLOCK_SIZE - 1);
 			if (blockBaseDiff > 0) {
 				// Allocate as many blocks as possible from ahead
-				while (blockBaseDiff > 0 && this->tailBlock != nullptr && this->tailBlock->next != firstAllocatedBlock && this->tailBlock->next->template is_empty<explicit_context>()) {
+				while (blockBaseDiff > 0 && this->tailBlock != nullptr && this->tailBlock->next != firstAllocatedBlock && this->tailBlock->next->ConcurrentQueue::Block::template is_empty<explicit_context>()) {
 					blockBaseDiff -= static_cast<index_t>(BLOCK_SIZE);
 					currentTailIndex += static_cast<index_t>(BLOCK_SIZE);
 					
@@ -1836,7 +1836,7 @@ private:
 #if MCDBGQ_TRACKMEM
 					newBlock->owner = this;
 #endif
-					newBlock->template set_all_empty<explicit_context>();
+					newBlock->ConcurrentQueue::Block::template set_all_empty<explicit_context>();
 					if (this->tailBlock == nullptr) {
 						newBlock->next = newBlock;
 					}
@@ -1859,7 +1859,7 @@ private:
 				// publish the new block index front
 				auto block = firstAllocatedBlock;
 				while (true) {
-					block->template reset_empty<explicit_context>();
+					block->ConcurrentQueue::Block::template reset_empty<explicit_context>();
 					if (block == this->tailBlock) {
 						break;
 					}
@@ -2023,7 +2023,7 @@ private:
 									while (index != endIndex) {
 										(*block)[index++]->~T();
 									}
-									block->template set_many_empty<explicit_context>(firstIndexInBlock, static_cast<size_t>(endIndex - firstIndexInBlock));
+									block->ConcurrentQueue::Block::template set_many_empty<explicit_context>(firstIndexInBlock, static_cast<size_t>(endIndex - firstIndexInBlock));
 									indexIndex = (indexIndex + 1) & (localBlockIndex->size - 1);
 									
 									firstIndexInBlock = index;
@@ -2034,7 +2034,7 @@ private:
 								MOODYCAMEL_RETHROW;
 							}
 						}
-						block->template set_many_empty<explicit_context>(firstIndexInBlock, static_cast<size_t>(endIndex - firstIndexInBlock));
+						block->ConcurrentQueue::Block::template set_many_empty<explicit_context>(firstIndexInBlock, static_cast<size_t>(endIndex - firstIndexInBlock));
 						indexIndex = (indexIndex + 1) & (localBlockIndex->size - 1);
 					} while (index != firstIndex + actualCount);
 					
@@ -2220,7 +2220,7 @@ private:
 #if MCDBGQ_TRACKMEM
 				newBlock->owner = this;
 #endif
-				newBlock->template reset_empty<implicit_context>();
+				newBlock->ConcurrentQueue::Block::template reset_empty<implicit_context>();
 				
 				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
 					// May throw, try to insert now before we publish the fact that we have this new block
@@ -2290,7 +2290,7 @@ private:
 							~Guard()
 							{
 								(*block)[index]->~T();
-								if (block->template set_empty<implicit_context>(index)) {
+								if (block->ConcurrentQueue::Block::template set_empty<implicit_context>(index)) {
 									entry->value.store(nullptr, std::memory_order_relaxed);
 									parent->add_block_to_free_list(block);
 								}
@@ -2303,7 +2303,7 @@ private:
 						element = std::move(el);
 						el.~T();
 					
-						if (block->template set_empty<implicit_context>(index)) {
+						if (block->ConcurrentQueue::Block::template set_empty<implicit_context>(index)) {
 							{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 								debug::DebugLock lock(mutex);
@@ -2383,7 +2383,7 @@ private:
 #if MCDBGQ_TRACKMEM
 					newBlock->owner = this;
 #endif
-					newBlock->template reset_empty<implicit_context>();
+					newBlock->ConcurrentQueue::Block::template reset_empty<implicit_context>();
 					newBlock->next = nullptr;
 					
 					// Insert the new block into the index
@@ -2537,7 +2537,7 @@ private:
 										(*block)[index++]->~T();
 									}
 									
-									if (block->template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
+									if (block->ConcurrentQueue::Block::template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 										debug::DebugLock lock(mutex);
 #endif
@@ -2554,7 +2554,7 @@ private:
 								MOODYCAMEL_RETHROW;
 							}
 						}
-						if (block->template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
+						if (block->ConcurrentQueue::Block::template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
 							{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 								debug::DebugLock lock(mutex);
@@ -2863,7 +2863,7 @@ private:
 							auto block = tailBlock;
 							do {
 								++stats.allocatedBlocks;
-								if (!block->template is_empty<explicit_context>() || wasNonEmpty) {
+								if (!block->ConcurrentQueue::Block::template is_empty<explicit_context>() || wasNonEmpty) {
 									++stats.usedBlocks;
 									wasNonEmpty = wasNonEmpty || block != tailBlock;
 								}
