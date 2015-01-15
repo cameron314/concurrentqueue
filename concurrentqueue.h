@@ -106,7 +106,8 @@ namespace moodycamel { namespace details {
 
 #ifndef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 // VS2013 doesn't support `thread_local`, and MinGW-w64 w/ POSIX threading has a crippling bug: http://sourceforge.net/p/mingw-w64/bugs/445
-#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__))
+// Apparently the thread_local support doesn't completely work with g++ 4.7 either
+#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
 // Assume `thread_local` is fully supported in all other C++11 compilers/runtimes
 #define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 #endif
@@ -356,6 +357,12 @@ namespace details
 	{
 		return *it;
 	}
+	
+#if !defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)
+	template<typename T> struct is_trivially_destructible : std::is_trivially_destructible<T> { };
+#else
+	template<typename T> struct is_trivially_destructible : std::has_trivial_destructor<T> { };
+#endif
 	
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 	struct ThreadExitListener
@@ -1916,7 +1923,7 @@ private:
 						pr_blockIndexSlotsUsed = originalBlockIndexSlotsUsed;
 						this->tailBlock = startBlock == nullptr ? firstAllocatedBlock : startBlock;
 						
-						if (!std::is_trivially_destructible<T>::value) {
+						if (!details::is_trivially_destructible<T>::value) {
 							auto block = startBlock;
 							if ((startTailIndex & static_cast<index_t>(BLOCK_SIZE - 1)) == 0) {
 								block = firstAllocatedBlock;
@@ -2431,7 +2438,7 @@ private:
 						auto constructedStopIndex = currentTailIndex;
 						auto lastBlockEnqueued = this->tailBlock;
 						
-						if (!std::is_trivially_destructible<T>::value) {
+						if (!details::is_trivially_destructible<T>::value) {
 							auto block = startBlock;
 							if ((startTailIndex & static_cast<index_t>(BLOCK_SIZE - 1)) == 0) {
 								block = firstAllocatedBlock;
