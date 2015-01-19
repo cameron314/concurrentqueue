@@ -1626,7 +1626,7 @@ private:
 					}
 					
 					// Insert a new block in the circular linked list
-					auto newBlock = this->parent->requisition_block<allocMode>();
+					auto newBlock = this->parent->ConcurrentQueue::template requisition_block<allocMode>();
 					if (newBlock == nullptr) {
 						return false;
 					}
@@ -1832,7 +1832,7 @@ private:
 					}
 					
 					// Insert a new block in the circular linked list
-					auto newBlock = this->parent->requisition_block<allocMode>();
+					auto newBlock = this->parent->ConcurrentQueue::template requisition_block<allocMode>();
 					if (newBlock == nullptr) {
 						pr_blockIndexFront = originalBlockIndexFront;
 						pr_blockIndexSlotsUsed = originalBlockIndexSlotsUsed;
@@ -2218,7 +2218,7 @@ private:
 				}
 				
 				// Get ahold of a new block
-				auto newBlock = this->parent->requisition_block<allocMode>();
+				auto newBlock = this->parent->ConcurrentQueue::template requisition_block<allocMode>();
 				if (newBlock == nullptr) {
 					rewind_block_index_tail();
 					idxEntry->value.store(nullptr, std::memory_order_relaxed);
@@ -2367,7 +2367,7 @@ private:
 					auto head = this->headIndex.load(std::memory_order_relaxed);
 					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
 					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
-					if (full || !(indexInserted = insert_block_index_entry<allocMode>(idxEntry, currentTailIndex)) || (newBlock = this->parent->requisition_block<allocMode>()) == nullptr) {
+					if (full || !(indexInserted = insert_block_index_entry<allocMode>(idxEntry, currentTailIndex)) || (newBlock = this->parent->ConcurrentQueue::template requisition_block<allocMode>()) == nullptr) {
 						// Index allocation or block allocation failed; revert any other allocations
 						// and index insertions done so far for this operation
 						if (indexInserted) {
