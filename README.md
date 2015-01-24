@@ -179,6 +179,7 @@ a single-producer, multi-consumer scenario), you can use the `try_dequeue_from_p
 methods, which accept a producer token instead of a consumer token, and cut some overhead.
 
 When producing or consuming many elements, the most efficient way is to:
+
 1. Use the bulk methods of the queue with tokens
 2. Failing that, use the bulk methods without tokens
 3. Failing that, use the single-item methods with tokens
