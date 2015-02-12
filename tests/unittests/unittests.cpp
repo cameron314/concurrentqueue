@@ -9,6 +9,7 @@
 #include <cstring>
 #include <string>
 #include <cstddef>
+#include <string>
 
 #include "minitest.h"
 #include "../common/simplethread.h"
@@ -270,6 +271,8 @@ public:
 		REGISTER_TEST(core_thread_local);
 		REGISTER_TEST(core_free_list);
 		REGISTER_TEST(core_spmc_hash);
+		
+		REGISTER_TEST(explicit_strings_threaded);
 	}
 	
 	bool postTest(bool testSucceeded) override
@@ -3923,6 +3926,37 @@ public:
 				ASSERT_OR_FAIL(hash.remove(MAX_ENTRIES) == nullptr);
 			}
 		}
+		return true;
+	}
+	
+	bool explicit_strings_threaded()
+	{
+		std::vector<SimpleThread> threads(8);
+		ConcurrentQueue<std::string, MallocTrackingTraits> q(1024 * 1024);
+		
+		for (size_t tid = 0; tid != threads.size(); ++tid) {
+			threads[tid] = SimpleThread([&](size_t tid) {
+				const size_t ITERATIONS = 100 * 1024;
+				if (tid % 2 == 0) {
+					// Produce
+					ProducerToken t(q);
+					for (size_t i = 0; i != ITERATIONS; ++i) {
+						q.enqueue(t, std::string("banana", i % 6));
+					}
+				}
+				else {
+					// Consume
+					std::string item;
+					for (size_t i = 0; i != ITERATIONS / 2; ++i) {
+						q.try_dequeue(item);
+					}
+				}
+			}, tid);
+		}
+		for (size_t tid = 0; tid != threads.size(); ++tid) {
+			threads[tid].join();
+		}
+		
 		return true;
 	}
 };
