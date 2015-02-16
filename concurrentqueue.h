@@ -105,14 +105,14 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
-#ifndef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
-// VS2013 doesn't support `thread_local`, and MinGW-w64 w/ POSIX threading has a crippling bug: http://sourceforge.net/p/mingw-w64/bugs/445
-// g++ <=4.7 doesn't support thread_local either
-#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__) || !defined(__WINPTHREADS_VERSION)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
-// Assume `thread_local` is fully supported in all other C++11 compilers/runtimes
-#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
-#endif
-#endif
+//#ifndef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+//// VS2013 doesn't support `thread_local`, and MinGW-w64 w/ POSIX threading has a crippling bug: http://sourceforge.net/p/mingw-w64/bugs/445
+//// g++ <=4.7 doesn't support thread_local either
+//#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__) || !defined(__WINPTHREADS_VERSION)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+//// Assume `thread_local` is fully supported in all other C++11 compilers/runtimes
+//#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+//#endif
+//#endif
 
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
@@ -1536,6 +1536,7 @@ private:
 					while (details::circular_less_than<index_t>(pr_blockIndexEntries[i].base + BLOCK_SIZE, this->headIndex.load(std::memory_order_relaxed))) {
 						i = (i + 1) & (pr_blockIndexSize - 1);
 					}
+					assert(details::circular_less_than<index_t>(pr_blockIndexEntries[i].base, this->headIndex.load(std::memory_order_relaxed)));
 					halfDequeuedBlock = pr_blockIndexEntries[i].block;
 				}
 				
