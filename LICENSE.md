@@ -6,7 +6,7 @@ the CDSChecker tool, and the Relacy model checker.
 
 Simplified BSD License:
 
-Copyright (c) 2013-2014, Cameron Desrochers.
+Copyright (c) 2013-2015, Cameron Desrochers.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,

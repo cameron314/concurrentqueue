@@ -6,7 +6,7 @@
 
 
 // Simplified BSD license:
-// Copyright (c) 2013-2014, Cameron Desrochers.
+// Copyright (c) 2013-2015, Cameron Desrochers.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification,
