@@ -2915,6 +2915,12 @@ private:
 	
 	ProducerBase* recycle_or_create_producer(bool isExplicit)
 	{
+		bool recycled;
+		return recycle_or_create_producer(isExplicit, recycled);
+	}
+	
+	ProducerBase* recycle_or_create_producer(bool isExplicit, bool& recycled)
+	{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
@@ -2924,11 +2930,13 @@ private:
 				bool expected = true;
 				if (ptr->inactive.compare_exchange_strong(expected, /* desired */ false, std::memory_order_acquire, std::memory_order_relaxed)) {
 					// We caught one! It's been marked as activated, the caller can have it
+					recycled = true;
 					return ptr;
 				}
 			}
 		}
 		
+		recycled = false;
 		return add_producer(isExplicit ? static_cast<ProducerBase*>(create<ExplicitProducer>(this)) : create<ImplicitProducer>(this));
 	}
 	
@@ -3154,9 +3162,14 @@ private:
 			// to finish being allocated by another thread (and if we just finished allocating above, the condition will
 			// always be true)
 			if (newCount < (mainHash->capacity >> 1) + (mainHash->capacity >> 2)) {
-				auto producer = static_cast<ImplicitProducer*>(recycle_or_create_producer(false));
+				bool recycled;
+				auto producer = static_cast<ImplicitProducer*>(recycle_or_create_producer(false, recycled));
 				if (producer == nullptr) {
+					implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
 					return nullptr;
+				}
+				if (recycled) {
+					implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
 				}
 				
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
@@ -3169,19 +3182,18 @@ private:
 				while (true) {
 					index &= mainHash->capacity - 1;
 					auto probedKey = mainHash->entries[index].key.load(std::memory_order_relaxed);
+					
 					auto empty = details::invalid_thread_id;
-					if (probedKey == empty && mainHash->entries[index].key.compare_exchange_strong(empty, id, std::memory_order_relaxed)) {
-						mainHash->entries[index].value = producer;
-						break;
-					}
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 					auto reusable = details::invalid_thread_id2;
-					if (probedKey == reusable && mainHash->entries[index].key.compare_exchange_strong(reusable, id, std::memory_order_acquire)) {
-						implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
+					if ((probedKey == empty    && mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_relaxed)) ||
+						(probedKey == reusable && mainHash->entries[index].key.compare_exchange_strong(reusable, id, std::memory_order_acquire))) {
+#else
+					if ((probedKey == empty    && mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_relaxed))) {
+#endif
 						mainHash->entries[index].value = producer;
 						break;
 					}
-#endif
 					++index;
 				}
 				return producer;
@@ -3204,21 +3216,26 @@ private:
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
-		// Only need to remove from main table (as that's the only one that new inserts could go into)
 		auto hash = implicitProducerHash.load(std::memory_order_acquire);
 		assert(hash != nullptr);		// The thread exit listener is only registered if we were added to a hash in the first place
 		auto id = details::thread_id();
-		auto index = details::hash_thread_id(id);
+		auto hashedId = details::hash_thread_id(id);
 		details::thread_id_t probedKey;
-		do {
-			index &= hash->capacity - 1;
-			probedKey = hash->entries[index].key.load(std::memory_order_relaxed);
-			if (probedKey == id) {
-				hash->entries[index].key.store(details::invalid_thread_id2, std::memory_order_release);
-				break;
-			}
-			++index;
-		} while (probedKey != details::invalid_thread_id);		// Can happen if the hash has changed but we weren't put back in it yet
+		
+		// We need to traverse all the hashes just in case other threads aren't on the current one yet and are
+		// trying to add an entry thinking there's a free slot (because they reused a producer)
+		for (; hash != nullptr; hash = hash->prev) {
+			auto index = hashedId;
+			do {
+				index &= hash->capacity - 1;
+				probedKey = hash->entries[index].key.load(std::memory_order_relaxed);
+				if (probedKey == id) {
+					hash->entries[index].key.store(details::invalid_thread_id2, std::memory_order_release);
+					break;
+				}
+				++index;
+			} while (probedKey != details::invalid_thread_id);		// Can happen if the hash has changed but we weren't put back in it yet, or if we weren't added to this hash in the first place
+		}
 		
 		// Mark the queue as being recyclable
 		producer->inactive.store(true, std::memory_order_release);
