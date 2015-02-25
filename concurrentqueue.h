@@ -603,6 +603,15 @@ public:
 		implicitProducerHashResizeInProgress.clear();
 		populate_initial_implicit_producer_hash();
 		populate_initial_block_list(capacity / BLOCK_SIZE + ((capacity & (BLOCK_SIZE - 1)) == 0 ? 0 : 1));
+		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+		// Track all the producers using a fully-resolved typed list for
+		// each kind; this makes it possible to debug them starting from
+		// the root queue object (otherwise wacky casts are needed that
+		// don't compile in the debugger's expression evaluator).
+		explicitProducers.store(nullptr, std::memory_order_relaxed);
+		implicitProducers.store(nullptr, std::memory_order_relaxed);
+#endif
 	}
 	
 	// Note: The queue should not be accessed concurrently while it's
@@ -681,6 +690,13 @@ public:
 		other.nextExplicitConsumerId.store(0, std::memory_order_relaxed);
 		other.globalExplicitConsumerOffset.store(0, std::memory_order_relaxed);
 		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+		explicitProducers.store(other.explicitProducers.load(std::memory_order_relaxed), std::memory_order_relaxed);
+		other.explicitProducers.store(nullptr, std::memory_order_relaxed);
+		implicitProducers.store(other.implicitProducers.load(std::memory_order_relaxed), std::memory_order_relaxed);
+		other.implicitProducers.store(nullptr, std::memory_order_relaxed);
+#endif
+		
 		other.initialBlockPoolIndex.store(0, std::memory_order_relaxed);
 		other.initialBlockPoolSize = 0;
 		other.initialBlockPool = nullptr;
@@ -723,6 +739,11 @@ private:
 		
 		reown_producers();
 		other.reown_producers();
+		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+		details::swap_relaxed(explicitProducers, other.explicitProducers);
+		details::swap_relaxed(implicitProducers, other.implicitProducers);
+#endif
 		
 		return *this;
 	}
@@ -2123,6 +2144,12 @@ private:
 		BlockIndexEntry* pr_blockIndexEntries;
 		void* pr_blockIndexRaw;
 		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+	public:
+		ExplicitProducer* nextExplicitProducer;
+	private:
+#endif
+		
 #if MCDBGQ_TRACKMEM
 		friend struct MemStats;
 #endif
@@ -2717,6 +2744,12 @@ private:
 		details::ThreadExitListener threadExitListener;
 	private:
 #endif
+		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+	public:
+		ImplicitProducer* nextImplicitProducer;
+	private:
+#endif
 
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 		mutable debug::DebugMutex mutex;
@@ -2954,6 +2987,21 @@ private:
 		do {
 			producer->next = prevTail;
 		} while (!producerListTail.compare_exchange_weak(prevTail, producer, std::memory_order_release, std::memory_order_relaxed));
+		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+		if (producer->isExplicit) {
+			auto prevTailExplicit = explicitProducers.load(std::memory_order_relaxed);
+			do {
+				static_cast<ExplicitProducer*>(producer)->nextExplicitProducer = prevTailExplicit;
+			} while (!explicitProducers.compare_exchange_weak(prevTailExplicit, static_cast<ExplicitProducer*>(producer), std::memory_order_release, std::memory_order_relaxed));
+		}
+		else {
+			auto prevTailImplicit = implicitProducers.load(std::memory_order_relaxed);
+			do {
+				static_cast<ImplicitProducer*>(producer)->nextImplicitProducer = prevTailImplicit;
+			} while (!implicitProducers.compare_exchange_weak(prevTailImplicit, static_cast<ImplicitProducer*>(producer), std::memory_order_release, std::memory_order_relaxed));
+		}
+#endif
 		
 		return producer;
 	}
@@ -3328,6 +3376,11 @@ private:
 	
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 	debug::DebugMutex implicitProdMutex;
+#endif
+	
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+	std::atomic<ExplicitProducer*> explicitProducers;
+	std::atomic<ImplicitProducer*> implicitProducers;
 #endif
 };
 
