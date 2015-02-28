@@ -10,15 +10,20 @@ endif
 
 OPTS = -pthread $(PLATFORM_OPTS) -O3 -g
 
-default: freelist$(EXT) spmchash$(EXT)
+default: freelist$(EXT) spmchash$(EXT) integrated$(EXT)
 
 freelist$(EXT): makefile freelist.cpp
 	g++ -std=c++11 -fpermissive $(OPTS) freelist.cpp -o freelist$(EXT)
 
 spmchash$(EXT): makefile spmchash.cpp
 	g++ -std=c++11 -fpermissive $(OPTS) spmchash.cpp -o spmchash$(EXT)
+	
+integrated$(EXT): makefile integrated.cpp ../../concurrentqueue.h relacy_shims.h
+	g++ -std=c++11 -fpermissive $(OPTS) -Irelacy -I. integrated.cpp -o integrated$(EXT)
 
 #run: freelist$(EXT)
-#	freelist$(EXT)
-run: spmchash$(EXT)
-	spmchash$(EXT)
+#	./freelist$(EXT)
+#run: spmchash$(EXT)
+#	./spmchash$(EXT)
+run: integrated$(EXT)
+	./integrated$(EXT)

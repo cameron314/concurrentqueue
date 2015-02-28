@@ -31,7 +31,31 @@
 
 #pragma once
 
+#if defined(__GNUC__)
+// Disable -Wconversion warnings (spuriously triggered when Traits::size_t and
+// Traits::index_t are set to < 32 bits, causing integer promotion, causing warnings
+// upon assigning any computed values)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+
+#ifdef MCDBGQ_USE_RELACY
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#endif
+#endif
+
+#ifdef MCDBGQ_USE_RELACY
+#include "relacy/relacy_std.hpp"
+#include "relacy_shims.h"
+// We only use malloc/free anyway, and the delete macro messes up `= delete` method declarations.
+// We'll override the default trait malloc ourselves without a macro.
+#undef new
+#undef delete
+#undef malloc
+#undef free
+#else
 #include <atomic>		// Requires C++11. Sorry VS2010.
+#include <cassert>
+#endif
 #include <cstdint>
 #include <cstdlib>
 #include <type_traits>
@@ -39,12 +63,18 @@
 #include <utility>
 #include <limits>
 #include <climits>		// for CHAR_BIT
-#include <cassert>
 #include <array>
 #include <thread>		// for __WINPTHREADS_VERSION if on MinGW-w64 w/ POSIX threading
 
 // Platform-specific definitions of a numeric thread ID type and an invalid value
-#if defined(_WIN32) || defined(__WINDOWS__) || defined(__WIN32__)
+#if defined(MCDBGQ_USE_RELACY)
+namespace moodycamel { namespace details {
+	typedef std::uint32_t thread_id_t;
+	static const thread_id_t invalid_thread_id  = 0xFFFFFFFFU;
+	static const thread_id_t invalid_thread_id2 = 0xFFFFFFFEU;
+	static inline thread_id_t thread_id() { return rl::thread_index(); }
+} }
+#elif defined(_WIN32) || defined(__WINDOWS__) || defined(__WIN32__)
 // No sense pulling in windows.h in a header, we'll manually declare the function
 // we use and rely on backwards-compatibility for this not to break
 extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void);
@@ -105,14 +135,18 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
-//#ifndef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+#ifndef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+#ifdef MCDBGQ_USE_RELACY
+#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+#else
 //// VS2013 doesn't support `thread_local`, and MinGW-w64 w/ POSIX threading has a crippling bug: http://sourceforge.net/p/mingw-w64/bugs/445
 //// g++ <=4.7 doesn't support thread_local either
 //#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__) || !defined(__WINPTHREADS_VERSION)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
 //// Assume `thread_local` is fully supported in all other C++11 compilers/runtimes
 //#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 //#endif
-//#endif
+#endif
+#endif
 
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
@@ -125,17 +159,8 @@ namespace moodycamel { namespace details {
 #endif
 } }
 
-
 #ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
 #include "internal/concurrentqueue_internal_debug.h"
-#endif
-
-#if defined(__GNUC__)
-// Disable -Wconversion warnings (spuriously triggered when Traits::size_t and
-// Traits::index_t are set to < 32 bits, causing integer promotion, causing warnings
-// upon assigning any computed values)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
 #endif
 
 namespace moodycamel {
@@ -148,7 +173,6 @@ namespace details {
 			: static_cast<T>(-1);
 	};
 }
-
 
 // Default traits for the ConcurrentQueue. To change some of the
 // traits without re-implementing all of them, inherit from this
@@ -213,10 +237,17 @@ struct ConcurrentQueueDefaultTraits
 	static const size_t MAX_SUBQUEUE_SIZE = details::const_numeric_max<size_t>::value;
 	
 	
+#ifndef MCDBGQ_USE_RELACY
 	// Memory allocation can be customized if needed.
 	// malloc should return nullptr on failure, and handle alignment like std::malloc.
 	static inline void* malloc(size_t size) { return std::malloc(size); }
 	static inline void free(void* ptr) { return std::free(ptr); }
+#else
+	// Debug versions when running under the Relacy race detector (ignore
+	// these in user code)
+	static inline void* malloc(size_t size) { return rl::rl_malloc(size, $); }
+	static inline void free(void* ptr) { return rl::rl_free(ptr, $); }
+#endif
 };
 
 
@@ -366,6 +397,10 @@ namespace details
 #endif
 	
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
+#ifdef MCDBGQ_USE_RELACY
+	typedef RelacyThreadExitListener ThreadExitListener;
+	typedef RelacyThreadExitNotifier ThreadExitNotifier;
+#else
 	struct ThreadExitListener
 	{
 		typedef void (*callback_t)(void*);
@@ -423,7 +458,8 @@ namespace details
 	private:
 		ThreadExitListener* tail;
 	};
-	#endif
+#endif
+#endif
 	
 	template<typename T> struct static_is_lock_free_num { enum { value = 0 }; };
 	template<> struct static_is_lock_free_num<signed char> { enum { value = ATOMIC_CHAR_LOCK_FREE }; };
@@ -600,7 +636,7 @@ public:
 		nextExplicitConsumerId(0),
 		globalExplicitConsumerOffset(0)
 	{
-		implicitProducerHashResizeInProgress.clear();
+		implicitProducerHashResizeInProgress.clear(std::memory_order_relaxed);
 		populate_initial_implicit_producer_hash();
 		populate_initial_block_list(capacity / BLOCK_SIZE + ((capacity & (BLOCK_SIZE - 1)) == 0 ? 0 : 1));
 		
@@ -681,7 +717,7 @@ public:
 		globalExplicitConsumerOffset(other.globalExplicitConsumerOffset.load(std::memory_order_relaxed))
 	{
 		// Move the other one into this, and leave the other one as an empty queue
-		implicitProducerHashResizeInProgress.clear();
+		implicitProducerHashResizeInProgress.clear(std::memory_order_relaxed);
 		populate_initial_implicit_producer_hash();
 		swap_implicit_producer_hashes(other);
 		
