@@ -1784,8 +1784,14 @@ private:
 					// Guaranteed to be at least one element to dequeue!
 					
 					// Get the index. Note that since there's guaranteed to be at least one element, this
-					// will never exceed tail.
-					auto index = this->headIndex.fetch_add(1, std::memory_order_relaxed);
+					// will never exceed tail. We need to do an acquire-release fence here since it's possible
+					// that whatever condition got us to this point was for an earlier enqueued element (that
+					// we already see the memory effects for), but that by the time we increment somebody else
+					// has incremented it, and we need to see the memory effects for *that* element, which is
+					// in such a case is necessarily visible on the thread that incremented it in the first
+					// place with the more current condition (they must have acquired a tail that is at least
+					// as recent).
+					auto index = this->headIndex.fetch_add(1, std::memory_order_acq_rel);
 					
 					
 					// Determine which block the element is in
@@ -2044,7 +2050,7 @@ private:
 					
 					// Get the first index. Note that since there's guaranteed to be at least actualCount elements, this
 					// will never exceed tail.
-					auto firstIndex = this->headIndex.fetch_add(actualCount, std::memory_order_relaxed);
+					auto firstIndex = this->headIndex.fetch_add(actualCount, std::memory_order_acq_rel);
 					
 					// Determine which block the first element is in
 					auto localBlockIndex = blockIndex.load(std::memory_order_acquire);
@@ -2338,7 +2344,7 @@ private:
 				assert(overcommit <= myDequeueCount);
 				tail = this->tailIndex.load(std::memory_order_acquire);
 				if (details::likely(details::circular_less_than<index_t>(myDequeueCount - overcommit, tail))) {
-					index_t index = this->headIndex.fetch_add(1, std::memory_order_relaxed);
+					index_t index = this->headIndex.fetch_add(1, std::memory_order_acq_rel);
 					
 					// Determine which block the element is in
 					auto entry = get_block_index_entry_for_index(index);
@@ -2570,7 +2576,7 @@ private:
 					
 					// Get the first index. Note that since there's guaranteed to be at least actualCount elements, this
 					// will never exceed tail.
-					auto firstIndex = this->headIndex.fetch_add(actualCount, std::memory_order_relaxed);
+					auto firstIndex = this->headIndex.fetch_add(actualCount, std::memory_order_acq_rel);
 					
 					// Iterate the blocks and dequeue
 					auto index = firstIndex;
