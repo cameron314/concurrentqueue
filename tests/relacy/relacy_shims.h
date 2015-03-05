@@ -101,7 +101,7 @@ namespace std
 		
 		bool test_and_set(rl::memory_order order, rl::debug_info_param d)
 		{
-			return val.fetch_xor(1, order, d) != 0;
+			return val.fetch_or(1, order, d) != 0;
 		}
 		
 	private:
