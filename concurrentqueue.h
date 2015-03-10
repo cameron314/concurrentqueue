@@ -1587,8 +1587,9 @@ private:
 			if (this->tailBlock != nullptr) {		// Note this means there must be a block index too
 				// First find the block that's partially dequeued, if any
 				Block* halfDequeuedBlock = nullptr;
-				if (this->headIndex.load(std::memory_order_relaxed) != this->tailIndex.load(std::memory_order_relaxed) && (this->headIndex.load(std::memory_order_relaxed) & static_cast<index_t>(BLOCK_SIZE - 1)) != 0) {
+				if ((this->headIndex.load(std::memory_order_relaxed) & static_cast<index_t>(BLOCK_SIZE - 1)) != 0) {
 					// The head's not on a block boundary, meaning a block somewhere is partially dequeued
+					// (or the head block is the tail block and was fully dequeued, but the head/tail are still not on a boundary)
 					size_t i = (pr_blockIndexFront - pr_blockIndexSlotsUsed) & (pr_blockIndexSize - 1);
 					while (details::circular_less_than<index_t>(pr_blockIndexEntries[i].base + BLOCK_SIZE, this->headIndex.load(std::memory_order_relaxed))) {
 						i = (i + 1) & (pr_blockIndexSize - 1);
@@ -3223,29 +3224,34 @@ private:
 				// we reload implicitProducerHash it must be the most recent version (it only gets changed within this
 				// locked block).
 				mainHash = implicitProducerHash.load(std::memory_order_acquire);
-				auto newCapacity = mainHash->capacity << 1;
-				while (newCount >= (newCapacity >> 1)) {
-					newCapacity <<= 1;
+				if (newCount >= (mainHash->capacity >> 1)) {
+					auto newCapacity = mainHash->capacity << 1;
+					while (newCount >= (newCapacity >> 1)) {
+						newCapacity <<= 1;
+					}
+					auto raw = static_cast<char*>(Traits::malloc(sizeof(ImplicitProducerHash) + std::alignment_of<ImplicitProducerKVP>::value - 1 + sizeof(ImplicitProducerKVP) * newCapacity));
+					if (raw == nullptr) {
+						// Allocation failed
+						implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
+						implicitProducerHashResizeInProgress.clear(std::memory_order_relaxed);
+						return nullptr;
+					}
+					
+					auto newHash = new (raw) ImplicitProducerHash;
+					newHash->capacity = newCapacity;
+					newHash->entries = reinterpret_cast<ImplicitProducerKVP*>(details::align_for<ImplicitProducerKVP>(raw + sizeof(ImplicitProducerHash)));
+					for (size_t i = 0; i != newCapacity; ++i) {
+						new (newHash->entries + i) ImplicitProducerKVP;
+						newHash->entries[i].key.store(details::invalid_thread_id, std::memory_order_relaxed);
+					}
+					newHash->prev = mainHash;
+					implicitProducerHash.store(newHash, std::memory_order_release);
+					implicitProducerHashResizeInProgress.clear(std::memory_order_release);
+					mainHash = newHash;
 				}
-				auto raw = static_cast<char*>(Traits::malloc(sizeof(ImplicitProducerHash) + std::alignment_of<ImplicitProducerKVP>::value - 1 + sizeof(ImplicitProducerKVP) * newCapacity));
-				if (raw == nullptr) {
-					// Allocation failed
-					implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
-					implicitProducerHashResizeInProgress.clear(std::memory_order_relaxed);
-					return nullptr;
+				else {
+					implicitProducerHashResizeInProgress.clear(std::memory_order_release);
 				}
-				
-				auto newHash = new (raw) ImplicitProducerHash;
-				newHash->capacity = newCapacity;
-				newHash->entries = reinterpret_cast<ImplicitProducerKVP*>(details::align_for<ImplicitProducerKVP>(raw + sizeof(ImplicitProducerHash)));
-				for (size_t i = 0; i != newCapacity; ++i) {
-					new (newHash->entries + i) ImplicitProducerKVP;
-					newHash->entries[i].key.store(details::invalid_thread_id, std::memory_order_relaxed);
-				}
-				newHash->prev = mainHash;
-				implicitProducerHash.store(newHash, std::memory_order_release);
-				implicitProducerHashResizeInProgress.clear(std::memory_order_release);
-				mainHash = newHash;
 			}
 			
 			// If it's < three-quarters full, add to the old one anyway so that we don't have to wait for the next table

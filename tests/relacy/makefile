@@ -10,7 +10,7 @@ endif
 
 OPTS = -pthread $(PLATFORM_OPTS) -O3 -g
 
-default: freelist$(EXT) spmchash$(EXT) integrated$(EXT)
+default: integrated$(EXT) freelist$(EXT) spmchash$(EXT) integrated$(EXT)
 
 freelist$(EXT): makefile freelist.cpp
 	g++ -std=c++11 -fpermissive $(OPTS) freelist.cpp -o freelist$(EXT)
