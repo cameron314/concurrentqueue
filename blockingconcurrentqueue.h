@@ -201,7 +201,7 @@ namespace details
 		        // Is there a better way to set the initial spin count?
 		        // If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
 		        // as threads start hitting the kernel semaphore.
-		        unsigned spin = 10000;
+		        int spin = 10000;
 		        while (--spin >= 0)
 		        {
 		            oldCount = m_count.load(std::memory_order_relaxed);
@@ -220,7 +220,7 @@ namespace details
 		    {
 		    	assert(max > 0);
 		        ssize_t oldCount;
-		        unsigned spin = 10000;
+		        int spin = 10000;
 		        while (--spin >= 0)
 		        {
 		            oldCount = m_count.load(std::memory_order_relaxed);
