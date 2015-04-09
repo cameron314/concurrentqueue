@@ -55,9 +55,6 @@ namespace details
 	// 3. This notice may not be removed or altered from any source distribution.
 	namespace mpmc_sema
 	{
-#ifndef MOODYCAMEL_DETAILS_SEMA
-#define MOODYCAMEL_DETAILS_SEMA
-		
 #if defined(_WIN32)
 		class Semaphore
 		{
@@ -307,7 +304,6 @@ namespace details
 		    	return count > 0 ? count : 0;
 		    }
 		};
-#endif
 	}	// end namespace mpmc_sema
 }	// end namespace details
 
