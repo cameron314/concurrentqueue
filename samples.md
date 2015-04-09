@@ -162,6 +162,43 @@ ensure that all items eventually get consumed.
 		consumers[i].join();
 	}
 	
+## Producer/consumer model (simultaneous, blocking)
+
+The blocking version is different, since either the number of elements being produced needs
+to be known ahead of time, or some other coordination is required to tell the consumers when
+to stop calling wait_dequeue (not shown here). This is necessary because otherwise a consumer
+could end up blocking forever -- and destroying a queue while a consumer is blocking on it leads
+to undefined behaviour.
+
+	BlockingConcurrentQueue<Item> q;
+	const int ProducerCount = 8;
+	const int ConsumerCount = 8;
+	std::thread producers[ProducerCount];
+	std::thread consumers[ConsumerCount];
+	std::atomic<int> promisedElementsRemaining(ProducerCount * 1000);
+	for (int i = 0; i != ProducerCount; ++i) {
+		producers[i] = std::thread([&]() {
+			for (int j = 0; j != 1000; ++j) {
+				q.enqueue(produceItem());
+			}
+		});
+	}
+	for (int i = 0; i != ConsumerCount; ++i) {
+		consumers[i] = std::thread([&]() {
+			Item item;
+			while (promisedElementsRemaining.fetch_sub(1, std::memory_order_relaxed)) {
+				q.wait_dequeue(item);
+				consumeItem(item);
+			}
+		});
+	}
+	for (int i = 0; i != ProducerCount; ++i) {
+		producers[i].join();
+	}
+	for (int i = 0; i != ConsumerCount; ++i) {
+		consumers[i].join();
+	}
+	
 
 ## Producer/consumer model (separate stages)
 
@@ -198,6 +235,10 @@ ensure that all items eventually get consumed.
 		threads[i].join();
 	}
 
+Note that there's no point trying to use the blocking queue with this model, since
+there's no need to use the `wait` methods (all the elements are produced before any
+are consumed), and hence the complexity would be the same but with additional overhead.
+
 
 ## Object pool
 
@@ -230,17 +271,15 @@ is to use the implicit methods (that don't take any tokens):
 
 ## Threadpool task queue
 
-	ConcurrentQueue<Task> q;
+	BlockingConcurrentQueue<Task> q;
     
 	// To create a task from any thread:
 	q.enqueue(...);
 
 	// On threadpool threads:
 	Task task;
-	while (!killThreadpool) {
-		if (!q.try_dequeue(task)) {
-			continue;
-		}
+	while (true) {
+		q.wait_dequeue(task);
 		
 		// Process task...
 	}
@@ -248,15 +287,13 @@ is to use the implicit methods (that don't take any tokens):
 
 ## Multithreaded game loop
 
-	ConcurrentQueue<Task> q;
+	BlockingConcurrentQueue<Task> q;
 	std::atomic<int> pendingTasks(0);
     
     // On threadpool threads:
 	Task task;
-	while (!killThreadpool) {
-		if (!q.try_dequeue(task)) {
-			continue;		// Maybe sleep a bit first in real code
-		}
+	while (true) {
+		q.wait_dequeue(task);
 		
 		// Process task...
 		

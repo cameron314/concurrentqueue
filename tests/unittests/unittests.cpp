@@ -11,10 +11,18 @@
 #include <cstddef>
 #include <string>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>		// Not because we need it, but to ensure no conflicts arise with the queue's declarations
+#endif
+
 #include "minitest.h"
 #include "../common/simplethread.h"
 #include "../common/systemtime.h"
 #include "../../concurrentqueue.h"
+#include "../../blockingconcurrentqueue.h"
 
 namespace {
 	struct tracking_allocator
@@ -265,6 +273,7 @@ public:
 		REGISTER_TEST(test_threaded_bulk);
 		REGISTER_TEST(full_api<ConcurrentQueueDefaultTraits>);
 		REGISTER_TEST(full_api<SmallIndexTraits>);
+		REGISTER_TEST(blocking_wrappers);
 		
 		// Core algos
 		REGISTER_TEST(core_add_only_list);
@@ -3002,7 +3011,7 @@ public:
 			ASSERT_OR_FAIL(success[1]);
 		}
 		
-		// Enqueue bulk (while somebody is dequeueing (with tokens)
+		// Enqueue bulk (while somebody is dequeueing (with tokens))
 		Traits::reset();
 		{
 			ConcurrentQueue<int, Traits> q;
@@ -3583,6 +3592,419 @@ public:
 			}
 			ASSERT_OR_FAIL(!q3.try_dequeue_non_interleaved(item));
 			ASSERT_OR_FAIL(q3.size_approx() == 0);
+		}
+		
+		return true;
+	}
+	
+	
+	bool blocking_wrappers()
+	{
+		typedef BlockingConcurrentQueue<int, MallocTrackingTraits> Q;
+		ASSERT_OR_FAIL((Q::is_lock_free() == ConcurrentQueue<int, MallocTrackingTraits>::is_lock_free()));
+		
+		// Moving
+		{
+			Q a, b, c;
+			a = std::move(b);
+			b = std::move(c);
+			a = std::move(a);
+			c = std::move(b);
+			b = Q(std::move(b));
+			using std::swap;
+			swap(a, b);
+			a.swap(c);
+			c.swap(c);
+		}
+		
+		// Implicit
+		{
+			Q q;
+			ASSERT_OR_FAIL(q.enqueue(1));
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			int item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item == 1);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			ASSERT_OR_FAIL(q.enqueue(2));
+			ASSERT_OR_FAIL(q.enqueue(3));
+			ASSERT_OR_FAIL(q.size_approx() == 2);
+			q.wait_dequeue(item);
+			ASSERT_OR_FAIL(item == 2);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			q.wait_dequeue(item);
+			ASSERT_OR_FAIL(item == 3);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+		}
+		
+		// Implicit threaded
+		{
+			Q q;
+			const int THREADS = 8;
+			SimpleThread threads[THREADS];
+			bool success[THREADS];
+			
+			for (int i = 0; i != THREADS; ++i) {
+				success[i] = true;
+				
+				if (i % 2 == 0) {
+					// Enqueue
+					if (i % 4 == 0) {
+						threads[i] = SimpleThread([&](int j) {
+							int stuff[5];
+							for (int k = 0; k != 2048; ++k) {
+								for (int x = 0; x != 5; ++x) {
+									stuff[x] = (j << 16) | (k * 5 + x);
+								}
+								success[j] = q.enqueue_bulk(stuff, 5) && success[j];
+							}
+						}, i);
+					}
+					else {
+						threads[i] = SimpleThread([&](int j) {
+							for (int k = 0; k != 4096; ++k) {
+								success[j] = q.enqueue((j << 16) | k) && success[j];
+							}
+						}, i);
+					}
+				}
+				else {
+					// Dequeue
+					threads[i] = SimpleThread([&](int j) {
+						int item;
+						int prevItems[THREADS];
+						std::memset(prevItems, -1, sizeof(prevItems));
+						if (j % 4 == 1) {
+							for (int k = 0; k != 2048 * 5; ++k) {
+								if (q.try_dequeue(item)) {
+									int thread = item >> 16;
+									item &= 0xffff;
+									if (item <= prevItems[thread]) {
+										success[j] = false;
+									}
+									prevItems[thread] = item;
+								}
+							}
+						}
+						else {
+							int items[6];
+							for (int k = 0; k < 4096;  ++k) {
+								if (std::size_t dequeued = q.try_dequeue_bulk(items, 6)) {
+									for (std::size_t x = 0; x != dequeued; ++x) {
+										item = items[x];
+										int thread = item >> 16;
+										item &= 0xffff;
+										if (item <= prevItems[thread]) {
+											success[j] = false;
+										}
+										prevItems[thread] = item;
+									}
+								}
+							}
+						}
+					}, i);
+				}
+			}
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i].join();
+			}
+			
+			for (int i = 0; i != THREADS; ++i) {
+				ASSERT_OR_FAIL(success[i]);
+			}
+		}
+		
+		// Implicit threaded, blocking
+		{
+			Q q;
+			const int THREADS = 8;
+			SimpleThread threads[THREADS];
+			bool success[THREADS];
+			
+			for (int i = 0; i != THREADS; ++i) {
+				success[i] = true;
+				
+				if (i % 2 == 0) {
+					// Enqueue
+					if (i % 4 == 0) {
+						threads[i] = SimpleThread([&](int j) {
+							int stuff[5];
+							for (int k = 0; k != 2048; ++k) {
+								for (int x = 0; x != 5; ++x) {
+									stuff[x] = (j << 16) | (k * 5 + x);
+								}
+								success[j] = q.enqueue_bulk(stuff, 5) && success[j];
+							}
+						}, i);
+					}
+					else {
+						threads[i] = SimpleThread([&](int j) {
+							for (int k = 0; k != 4096; ++k) {
+								success[j] = q.enqueue((j << 16) | k) && success[j];
+							}
+						}, i);
+					}
+				}
+				else {
+					// Dequeue
+					threads[i] = SimpleThread([&](int j) {
+						int item;
+						int prevItems[THREADS];
+						std::memset(prevItems, -1, sizeof(prevItems));
+						if (j % 4 == 1) {
+							for (int k = 0; k != 2048 * 5; ++k) {
+								q.wait_dequeue(item);
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+						else {
+							int items[6];
+							int k;
+							for (k = 0; k < 4090; ) {
+								if (std::size_t dequeued = q.wait_dequeue_bulk(items, 6)) {
+									for (std::size_t x = 0; x != dequeued; ++x) {
+										item = items[x];
+										int thread = item >> 16;
+										item &= 0xffff;
+										if (item <= prevItems[thread]) {
+											success[j] = false;
+										}
+										prevItems[thread] = item;
+									}
+									k += (int)dequeued;
+								}
+								else {
+									success[j] = false;
+								}
+							}
+							for (; k != 4096; ++k) {
+								q.wait_dequeue(item);
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+					}, i);
+				}
+			}
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i].join();
+			}
+			
+			for (int i = 0; i != THREADS; ++i) {
+				ASSERT_OR_FAIL(success[i]);
+			}
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+		}
+		
+		// Explicit
+		{
+			Q q;
+			ProducerToken pt(q);
+			ASSERT_OR_FAIL(q.enqueue(pt, 1));
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			int item;
+			ConsumerToken ct(q);
+			ASSERT_OR_FAIL(q.try_dequeue(ct, item));
+			ASSERT_OR_FAIL(item == 1);
+			ASSERT_OR_FAIL(!q.try_dequeue(ct, item));
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			ASSERT_OR_FAIL(q.enqueue(pt, 2));
+			ASSERT_OR_FAIL(q.enqueue(pt, 3));
+			ASSERT_OR_FAIL(q.size_approx() == 2);
+			q.wait_dequeue(ct, item);
+			ASSERT_OR_FAIL(item == 2);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			q.wait_dequeue(ct, item);
+			ASSERT_OR_FAIL(item == 3);
+			ASSERT_OR_FAIL(!q.try_dequeue(ct, item));
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+		}
+		
+		// Explicit threaded
+		{
+			Q q;
+			const int THREADS = 8;
+			SimpleThread threads[THREADS];
+			bool success[THREADS];
+			
+			for (int i = 0; i != THREADS; ++i) {
+				success[i] = true;
+				
+				if (i % 2 == 0) {
+					// Enqueue
+					if (i % 4 == 0) {
+						threads[i] = SimpleThread([&](int j) {
+							ProducerToken t(q);
+							int stuff[5];
+							for (int k = 0; k != 2048; ++k) {
+								for (int x = 0; x != 5; ++x) {
+									stuff[x] = (j << 16) | (k * 5 + x);
+								}
+								success[j] = q.enqueue_bulk(t, stuff, 5) && success[j];
+							}
+						}, i);
+					}
+					else {
+						threads[i] = SimpleThread([&](int j) {
+							ProducerToken t(q);
+							for (int k = 0; k != 4096; ++k) {
+								success[j] = q.enqueue(t, (j << 16) | k) && success[j];
+							}
+						}, i);
+					}
+				}
+				else {
+					// Dequeue
+					threads[i] = SimpleThread([&](int j) {
+						ConsumerToken t(q);
+						int item;
+						int prevItems[THREADS];
+						std::memset(prevItems, -1, sizeof(prevItems));
+						if (j % 4 == 1) {
+							for (int k = 0; k != 2048 * 5; ++k) {
+								if (q.try_dequeue(t, item)) {
+									int thread = item >> 16;
+									item &= 0xffff;
+									if (item <= prevItems[thread]) {
+										success[j] = false;
+									}
+									prevItems[thread] = item;
+								}
+							}
+						}
+						else {
+							int items[6];
+							for (int k = 0; k < 4096;  ++k) {
+								if (std::size_t dequeued = q.try_dequeue_bulk(t, items, 6)) {
+									for (std::size_t x = 0; x != dequeued; ++x) {
+										item = items[x];
+										int thread = item >> 16;
+										item &= 0xffff;
+										if (item <= prevItems[thread]) {
+											success[j] = false;
+										}
+										prevItems[thread] = item;
+									}
+								}
+							}
+						}
+					}, i);
+				}
+			}
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i].join();
+			}
+			
+			for (int i = 0; i != THREADS; ++i) {
+				ASSERT_OR_FAIL(success[i]);
+			}
+		}
+		
+		// Explicit threaded, blocking
+		{
+			Q q;
+			const int THREADS = 8;
+			SimpleThread threads[THREADS];
+			bool success[THREADS];
+			
+			for (int i = 0; i != THREADS; ++i) {
+				success[i] = true;
+				
+				if (i % 2 == 0) {
+					// Enqueue
+					if (i % 4 == 0) {
+						threads[i] = SimpleThread([&](int j) {
+							ProducerToken t(q);
+							int stuff[5];
+							for (int k = 0; k != 2048; ++k) {
+								for (int x = 0; x != 5; ++x) {
+									stuff[x] = (j << 16) | (k * 5 + x);
+								}
+								success[j] = q.enqueue_bulk(t, stuff, 5) && success[j];
+							}
+						}, i);
+					}
+					else {
+						threads[i] = SimpleThread([&](int j) {
+							ProducerToken t(q);
+							for (int k = 0; k != 4096; ++k) {
+								success[j] = q.enqueue(t, (j << 16) | k) && success[j];
+							}
+						}, i);
+					}
+				}
+				else {
+					// Dequeue
+					threads[i] = SimpleThread([&](int j) {
+						ConsumerToken t(q);
+						int item;
+						int prevItems[THREADS];
+						std::memset(prevItems, -1, sizeof(prevItems));
+						if (j % 4 == 1) {
+							for (int k = 0; k != 2048 * 5; ++k) {
+								q.wait_dequeue(t, item);
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+						else {
+							int items[6];
+							int k;
+							for (k = 0; k < 4090; ) {
+								if (std::size_t dequeued = q.wait_dequeue_bulk(t, items, 6)) {
+									for (std::size_t x = 0; x != dequeued; ++x) {
+										item = items[x];
+										int thread = item >> 16;
+										item &= 0xffff;
+										if (item <= prevItems[thread]) {
+											success[j] = false;
+										}
+										prevItems[thread] = item;
+									}
+									k += (int)dequeued;
+								}
+								else {
+									success[j] = false;
+								}
+							}
+							for (; k != 4096; ++k) {
+								q.wait_dequeue(t, item);
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+					}, i);
+				}
+			}
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i].join();
+			}
+			
+			for (int i = 0; i != THREADS; ++i) {
+				ASSERT_OR_FAIL(success[i]);
+			}
+			ASSERT_OR_FAIL(q.size_approx() == 0);
 		}
 		
 		return true;

@@ -8,13 +8,14 @@ Note: If all you need is a single-producer, single-consumer queue, I have [one o
 
 - Knock-your-socks-off [blazing fast performance][benchmarks].
 - Single-header implementation. Just drop it in your project.
-- General-purpose lock-free queue. Can be used concurrently from any number of threads.
+- Fully thread-safe lock-free queue. Use concurrently from any number of threads.
 - C++11 implementation -- elements are moved (instead of copied) where possible.
 - Templated, obviating the need to deal exclusively with pointers -- memory is managed for you.
-- No limitations in terms of the type or quantity of elements that can be put in the queue.
+- No artificial limitations on element types or maximum count.
 - Memory can be allocated once up-front, or dynamically as needed.
-- Fully portable (no assembly; all is done through the standard C++11 primitives).
+- Fully portable (no assembly; all is done through standard C++11 primitives).
 - Supports super-fast bulk operations.
+- Includes a low-overhead blocking version (BlockingConcurrentQueue).
 - Exception safe.
 
 ## Reasons to use
@@ -86,10 +87,11 @@ nitty-gritty details of the design][design], on my blog. Finally, the
 ## Basic use
 
 The entire queue's implementation is contained in **one header**, [`concurrentqueue.h`][concurrentqueue.h].
-Simply download and include that to use the queue.
+Simply download and include that to use the queue. The blocking version is in a separate header,
+[`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on the first.
 The implementation makes use of certain key C++11 features, so it requires a fairly recent compiler
-(e.g. VS2013 or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
-The code itself is platform independent.
+(e.g. VS2013+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
+The algorithm implementations themselves are platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
 it from many threads at once :-)
@@ -155,6 +157,40 @@ Full API (pseudocode):
 	# A not-necessarily-accurate count of the total number of elements
 	size_approx() : size_t
 
+## Blocking version
+
+As mentioned above, a full blocking wrapper of the queue is provided that adds
+`wait_dequeue` and `wait_dequeue_bulk` methods in addition to the regular interface.
+This wrapper is extremely low-overhead, but slightly less fast than the non-blocking
+queue (due to the necessary bookkeeping involving a lightweight semaphore).
+
+The only major caveat with the blocking version is that you must be careful not to
+destroy the queue while somebody is waiting on it. This generally means you need to
+know for certain that another element is going to come along before you call one of
+the blocking methods.
+
+Blocking example:
+
+    #include "blockingconcurrentqueue.h"
+    
+    moodycamel::BlockingConcurrentQueue<int> q;
+    std::thread producer([&]() {
+        for (int i = 0; i != 100; ++i) {
+            q.enqueue(i);
+        }
+    });
+    std::thread consumer([&]() {
+        for (int i = 0; i != 100; ++i) {
+            int item;
+            q.wait_dequeue(item);
+            assert(item == i);
+        }
+    });
+    producer.join();
+    consumer.join();
+    
+    assert(q.size_approx() == 0);
+
 ## Advanced features
 
 #### Tokens
@@ -177,6 +213,8 @@ that accept a token as their first parameter:
 If you happen to know which producer you want to consume from (e.g. in
 a single-producer, multi-consumer scenario), you can use the `try_dequeue_from_producer`
 methods, which accept a producer token instead of a consumer token, and cut some overhead.
+
+Note that tokens work with the blocking version of the queue too.
 
 When producing or consuming many elements, the most efficient way is to:
 
@@ -299,10 +337,11 @@ using the queue to *do* anything, the queue won't be your bottleneck.
 
 I've written quite a few unit tests as well as a randomized long-running fuzz tester. I also ran the
 core queue algorithm through the [CDSChecker][cdschecker] C++11 memory model model checker. Some of the
-inner algorithms were tested using the [Relacy][relacy] model checker.
+inner algorithms were tested separately using the [Relacy][relacy] model checker, and full integration
+tests were also performed with Relacy.
 I've tested
 on Linux (Fedora 19) and Windows (7), but only on x86 processors so far (Intel and AMD). The code was
-written to be platform-independent, however, and should work across all processors.
+written to be platform-independent, however, and should work across all processors and OSes.
 
 Due to the complexity of the implementation and the difficult-to-test nature of lock-free code in general,
 there may still be bugs. If anyone is seeing buggy behaviour, I'd like to hear about it! (Especially if
@@ -311,7 +350,8 @@ a unit test for it can be cooked up.) Just open an issue on GitHub.
 ## License
 
 I'm releasing the source of this repository (with the exception of third-party code, i.e. the Boost queue
-(used in the benchmarks for comparison), Intel's TBB library (ditto), CDSChecker, and Relacy, which have their own licenses)
+(used in the benchmarks for comparison), Intel's TBB library (ditto), CDSChecker, Relacy, and Jeff Preshing's
+cross-platform semaphore, which all have their own licenses)
 under a [simplified BSD license][license].
 
 Note that lock-free programming is a patent minefield, and this code may very
@@ -352,6 +392,7 @@ of the queue itself, followed lastly by the free-standing swap functions.
 [samples.md]: https://github.com/cameron314/concurrentqueue/blob/master/samples.md
 [source]: https://github.com/cameron314/concurrentqueue
 [concurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/concurrentqueue.h
+[blockingconcurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/blockingconcurrentqueue.h
 [unittest-src]: https://github.com/cameron314/concurrentqueue/tree/master/tests/unittests
 [benchmarks]: http://moodycamel.com/blog/2014/a-fast-general-purpose-lock-free-queue-for-c++#benchmarks
 [benchmark-src]: https://github.com/cameron314/concurrentqueue/tree/master/benchmarks
