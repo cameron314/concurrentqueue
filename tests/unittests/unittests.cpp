@@ -3675,8 +3675,7 @@ public:
 					// Dequeue
 					threads[i] = SimpleThread([&](int j) {
 						int item;
-						int prevItems[THREADS];
-						std::memset(prevItems, -1, sizeof(prevItems));
+						std::vector<int> prevItems(THREADS, -1);
 						if (j % 4 == 1) {
 							for (int k = 0; k != 2048 * 5; ++k) {
 								if (q.try_dequeue(item)) {
@@ -3752,8 +3751,7 @@ public:
 					// Dequeue
 					threads[i] = SimpleThread([&](int j) {
 						int item;
-						int prevItems[THREADS];
-						std::memset(prevItems, -1, sizeof(prevItems));
+						std::vector<int> prevItems(THREADS, -1);
 						if (j % 4 == 1) {
 							for (int k = 0; k != 2048 * 5; ++k) {
 								q.wait_dequeue(item);
@@ -3871,8 +3869,7 @@ public:
 					threads[i] = SimpleThread([&](int j) {
 						ConsumerToken t(q);
 						int item;
-						int prevItems[THREADS];
-						std::memset(prevItems, -1, sizeof(prevItems));
+						std::vector<int> prevItems(THREADS, -1);
 						if (j % 4 == 1) {
 							for (int k = 0; k != 2048 * 5; ++k) {
 								if (q.try_dequeue(t, item)) {
@@ -3951,8 +3948,7 @@ public:
 					threads[i] = SimpleThread([&](int j) {
 						ConsumerToken t(q);
 						int item;
-						int prevItems[THREADS];
-						std::memset(prevItems, -1, sizeof(prevItems));
+						std::vector<int> prevItems(THREADS, -1);
 						if (j % 4 == 1) {
 							for (int k = 0; k != 2048 * 5; ++k) {
 								q.wait_dequeue(t, item);

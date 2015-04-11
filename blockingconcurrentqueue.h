@@ -8,6 +8,7 @@
 
 #include "concurrentqueue.h"
 #include <type_traits>
+#include <memory>
 
 #if defined(_WIN32)
 // Avoid including windows.h in a header; we only need a handful of
@@ -189,7 +190,7 @@ namespace details
 		class LightweightSemaphore
 		{
 		public:
-			typedef typename std::make_signed<std::size_t>::type ssize_t;
+			typedef std::make_signed<std::size_t>::type ssize_t;
 			
 		private:
 		    std::atomic<ssize_t> m_count;
@@ -348,6 +349,7 @@ public:
 	explicit BlockingConcurrentQueue(size_t capacity = 6 * BLOCK_SIZE)
 		: inner(capacity), sema(create<LightweightSemaphore>(), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
 	{
+		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)0) == &((BlockingConcurrentQueue*)0)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
 			throw std::bad_alloc();
 		}
@@ -737,8 +739,6 @@ private:
 private:
 	ConcurrentQueue inner;
 	std::unique_ptr<LightweightSemaphore, void (*)(LightweightSemaphore*)> sema;
-	
-	static_assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)0) == &((BlockingConcurrentQueue*)0)->inner, "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 };
 
 
