@@ -249,7 +249,7 @@ bulk operations. Example syntax:
         assert(results[i] == items[i]);
     }
 
-### Preallocation (correctly using `try_enqueue`)
+#### Preallocation (correctly using `try_enqueue`)
 
 `try_enqueue`, unlike just plain `enqueue`, will never allocate memory. If there's not enough room in the
 queue, it simply returns false. The key to using this method properly, then, is to ensure enough space is
