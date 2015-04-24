@@ -195,10 +195,11 @@ Blocking example:
 
 #### Tokens
 
-The queue can take advantage of having thread-local data if
-it's available. This takes the form of "tokens": you can create a consumer
-token and/or a producer token for each thread or task, and use the methods
-that accept a token as their first parameter:
+The queue can take advantage of extra per-producer and per-consumer storage if
+it's available to speed up its operations. This takes the form of "tokens":
+You can create a consumer token and/or a producer token for each thread or task
+(tokens themselves are not thread-safe), and use the methods that accept a token
+as their first parameter:
 
     moodycamel::ConcurrentQueue<int> q;
     
@@ -247,6 +248,51 @@ bulk operations. Example syntax:
     for (size_t i = 0; i != count; ++i) {
         assert(results[i] == items[i]);
     }
+
+### Preallocation (correctly using `try_enqueue`)
+
+`try_enqueue`, unlike just plain `enqueue`, will never allocate memory. If there's not enough room in the
+queue, it simply returns false. The key to using this method properly, then, is to ensure enough space is
+pre-allocated for your desired maximum element count.
+
+The constructor accepts a count of the number of elements that it should reserve space for. Because the
+queue works with blocks of elements, however, and not individual elements themselves, the value to pass
+in order to obtain an effective number of pre-allocated element slots is non-obvious.
+
+First, be aware that the count passed is rounded up to the next multiple of the block size. Note that the
+default block size is 32 (this can be changed via the traits). Second, once a slot in a block has been
+enqueued to, that slot cannot be re-used until the rest of the block has completely been completely filled
+up and then completely emptied. This affects the number of blocks you need in order to account for the
+overhead of partially-filled blocks. Third, each producer (whether implicit or explicit) claims and recycles
+blocks in a different manner, which again affects the number of blocks you need to account for a desired number of
+usable slots.
+
+Suppose you want the queue to be able to hold at least `N` elements at any given time. Without delving too
+deep into the rather arcane implementation details, here are some simple formulas for the number of elements
+to request for pre-allocation in such a case. Note the division is intended to be arithmetic division and not
+integer division (in order for `ceil()` to work).
+
+For explicit producers (using tokens to enqueue):
+
+    (ceil(N / BLOCK_SIZE) + 1) * MAX_NUM_PRODUCERS * BLOCK_SIZ
+
+For implicit producers (no tokens):
+
+    (ceil(N / BLOCK_SIZE) - 1 + 2 * MAX_NUM_PRODUCERS) * BLOCK_SIZE
+
+When using mixed producer types:
+
+    ((ceil(N / BLOCK_SIZE) - 1) * (MAX_EXPLICIT_PRODUCERS + 1) + 2 * (MAX_IMPLICIT_PRODUCERS + MAX_EXPLICIT_PRODUCERS)) * BLOCK_SIZE
+
+If these formulas seem rather inconvenient, you can use the constructor overload that accepts the minimum
+number of elements (`N`) and the maximum number of producers and consumers directly, and let it do the
+computation for you.
+
+Finally, it's important to note that because the queue is only eventually consistent and takes advantage of
+weak memory ordering for speed, there's always a possibility that under contention `try_enqueue` will fail
+even if the queue is correctly pre-sized for the desired number of elements. (e.g. A given thread may think that
+the queue's full even when that's no longer the case.) So no matter what, you still need to handle the failure
+case (perhaps looping until it succeeds), unless you don't mind dropping elements.
 
 #### Exception safety
 

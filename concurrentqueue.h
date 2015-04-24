@@ -657,6 +657,27 @@ public:
 #endif
 	}
 	
+	// Computes the correct amount of pre-allocated blocks for you based
+	// on the minimum number of elements you want available at any given
+	// time, and the maximum concurrent number of each type of producer.
+	ConcurrentQueue(size_t minCapacity, size_t maxExplicitProducers, size_t maxImplicitProducers)
+		: producerListTail(nullptr),
+		producerCount(0),
+		initialBlockPoolIndex(0),
+		nextExplicitConsumerId(0),
+		globalExplicitConsumerOffset(0)
+	{
+		implicitProducerHashResizeInProgress.clear(std::memory_order_relaxed);
+		populate_initial_implicit_producer_hash();
+		size_t blocks = ((((minCapacity + BLOCK_SIZE - 1) / BLOCK_SIZE) - 1) * (maxExplicitProducers + 1) + 2 * (maxExplicitProducers + maxImplicitProducers)) * BLOCK_SIZE;
+		populate_initial_block_list(blocks);
+		
+#ifdef MOODYCAMEL_QUEUE_INTERNAL_DEBUG
+		explicitProducers.store(nullptr, std::memory_order_relaxed);
+		implicitProducers.store(nullptr, std::memory_order_relaxed);
+#endif
+	}
+	
 	// Note: The queue should not be accessed concurrently while it's
 	// being deleted. It's up to the user to synchronize this.
 	// This method is not thread safe.
