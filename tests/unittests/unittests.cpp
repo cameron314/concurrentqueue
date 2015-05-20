@@ -124,7 +124,7 @@ struct Foo
 	static void reset() { createCount() = 0; destroyCount() = 0; nextId() = 0; destroyedInOrder() = true; lastDestroyedId() = -1; }
 	
 	Foo() { id = nextId()++; ++createCount(); }
-	Foo(Foo const&) = delete;
+	Foo(Foo const&) MOODYCAMEL_DELETE_FUNCTION;
 	Foo(Foo&& other) { id = other.id; other.id = -1; }
 	void operator=(Foo&& other) { id = other.id; other.id = -1; }
 	~Foo()
@@ -158,12 +158,18 @@ struct Copyable {
 
 struct Moveable {
 	Moveable(int id) : moved(false), id(id) { }
-	Moveable(Moveable const&) = delete;
 	Moveable(Moveable&& o) MOODYCAMEL_NOEXCEPT : moved(true), id(o.id) { }
-	void operator=(Moveable const&) = delete;
 	void operator=(Moveable&& o) MOODYCAMEL_NOEXCEPT { moved = true; id = o.id; }
 	bool moved;
 	int id;
+
+#if defined(_MSC_VER) && _MSC_VER < 1800
+	Moveable(Moveable const& o) MOODYCAMEL_NOEXCEPT : moved(o.moved), id(o.id) { }
+	void operator=(Moveable const& o) MOODYCAMEL_NOEXCEPT { moved = o.moved; id = o.id; }
+#else
+	Moveable(Moveable const&) MOODYCAMEL_DELETE_FUNCTION;
+	void operator=(Moveable const&) MOODYCAMEL_DELETE_FUNCTION;
+#endif
 };
 
 struct ThrowingMovable {
@@ -2406,6 +2412,10 @@ public:
 			
 			q.enqueue(tok, ThrowingMovable(4));
 			threw = false;
+			auto temp0 = MOODYCAMEL_NOEXCEPT_CTOR(ThrowingMovable, ThrowingMovable&&, nullptr);
+			auto temp1 = MOODYCAMEL_NOEXCEPT_CTOR(ThrowingMovable, ThrowingMovable const&, nullptr);
+			auto temp2 = MOODYCAMEL_NOEXCEPT_ASSIGN(ThrowingMovable, ThrowingMovable&&, nullptr);
+			auto temp3 = MOODYCAMEL_NOEXCEPT_ASSIGN(ThrowingMovable, ThrowingMovable const&, nullptr);
 			try {
 				q.enqueue(tok, ThrowingMovable(5, true));
 			}
@@ -4269,8 +4279,8 @@ public:
 				
 				const int MAX_ENTRIES = 4096;
 				std::vector<int> values(MAX_ENTRIES);
-				std::vector<std::atomic<int>> useCounts(MAX_ENTRIES);
-				std::vector<std::atomic<bool>> removed(MAX_ENTRIES);
+				std::array<std::atomic<int>, MAX_ENTRIES> useCounts;
+				std::array<std::atomic<bool>, MAX_ENTRIES> removed;
 				
 				for (std::size_t i = 0; i != useCounts.size(); ++i) {
 					useCounts[i].store(0, std::memory_order_relaxed);

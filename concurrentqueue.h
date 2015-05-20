@@ -124,6 +124,12 @@ namespace moodycamel { namespace details {
 #define MOODYCAMEL_NOEXCEPT
 #define MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr) true
 #define MOODYCAMEL_NOEXCEPT_ASSIGN(type, valueType, expr) true
+#elif defined(_MSC_VER) && defined(_NOEXCEPT) && _MSC_VER < 1800
+// VS2012's std::is_nothrow_[move_]constructible is broken and returns true when it shouldn't :-(
+// We have to assume *all* non-trivial constructors may throw on VS2012!
+#define MOODYCAMEL_NOEXCEPT _NOEXCEPT
+#define MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr) (std::is_rvalue_reference<valueType>::value && std::is_move_constructible<type>::value ? std::is_trivially_move_constructible<type>::value : std::is_trivially_copy_constructible<type>::value)
+#define MOODYCAMEL_NOEXCEPT_ASSIGN(type, valueType, expr) ((std::is_rvalue_reference<valueType>::value && std::is_move_assignable<type>::value ? std::is_trivially_move_assignable<type>::value || std::is_nothrow_move_assignable<type>::value : std::is_trivially_copy_assignable<type>::value || std::is_nothrow_copy_assignable<type>::value) && MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr))
 #elif defined(_MSC_VER) && defined(_NOEXCEPT) && _MSC_VER < 1900
 #define MOODYCAMEL_NOEXCEPT _NOEXCEPT
 #define MOODYCAMEL_NOEXCEPT_CTOR(type, valueType, expr) (std::is_rvalue_reference<valueType>::value && std::is_move_constructible<type>::value ? std::is_trivially_move_constructible<type>::value || std::is_nothrow_move_constructible<type>::value : std::is_trivially_copy_constructible<type>::value || std::is_nothrow_copy_constructible<type>::value)
@@ -150,10 +156,12 @@ namespace moodycamel { namespace details {
 
 // VS2012 doesn't support deleted functions. 
 // In this case, we declare the function normally but don't define it. A link error will be generated if the function is called.
-#if defined(_MSC_VER) && _MSC_VER <= 1700
+#ifndef MOODYCAMEL_DELETE_FUNCTION
+#if defined(_MSC_VER) && _MSC_VER < 1800
 #define MOODYCAMEL_DELETE_FUNCTION
 #else
-#define MOODYCAMEL_DELETE_FUNCTION =delete
+#define MOODYCAMEL_DELETE_FUNCTION = delete
+#endif
 #endif
 
 // Compiler-specific likely/unlikely hints

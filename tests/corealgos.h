@@ -322,6 +322,20 @@ private:
 	{
 		std::atomic<details::thread_id_t> key;
 		T* value;		// No need for atomicity since it's only read by the thread that sets it in the first place
+
+		KeyValuePair()
+		{ }
+
+		KeyValuePair(KeyValuePair const& other)
+			: key(other.key.load()), value(other.value)
+		{ }
+
+		KeyValuePair& operator=(KeyValuePair const& other)
+		{
+			key.store(other.key.load());
+			value = other.value;
+			return *this;
+		}
 	};
 	
 	struct InnerHash
@@ -354,6 +368,17 @@ struct FreeListNode
 
     std::atomic<std::uint32_t> freeListRefs;
     std::atomic<N*> freeListNext;
+
+	FreeListNode(FreeListNode const& other)
+		: freeListRefs(other.freeListRefs.load()), freeListNext(other.freeListNext.load())
+	{ }
+
+	FreeListNode& operator=(FreeListNode const& other)
+	{
+		freeListRefs.store(other.freeListRefs.load());
+		freeListNext.store(other.freeListNext.load());
+		return *this;
+	}
 };
 
 // A simple CAS-based lock-free free list. Not the fastest thing in the world under heavy contention,
