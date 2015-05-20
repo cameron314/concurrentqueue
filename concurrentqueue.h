@@ -148,6 +148,14 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
+// VS2012 doesn't support deleted functions. 
+// In this case, we declare the function normally but don't define it. A link error will be generated if the function is called.
+#if defined(_MSC_VER) && _MSC_VER <= 1700
+#define MOODYCAMEL_DELETE_FUNCTION
+#else
+#define MOODYCAMEL_DELETE_FUNCTION =delete
+#endif
+
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
 #if defined(__GNUC__)
@@ -437,8 +445,8 @@ namespace details
 		
 	private:
 		ThreadExitNotifier() : tail(nullptr) { }
-		ThreadExitNotifier(ThreadExitNotifier const&) = delete;
-		ThreadExitNotifier& operator=(ThreadExitNotifier const&) = delete;
+		ThreadExitNotifier(ThreadExitNotifier const&) MOODYCAMEL_DELETE_FUNCTION;
+		ThreadExitNotifier& operator=(ThreadExitNotifier const&) MOODYCAMEL_DELETE_FUNCTION;
 		
 		~ThreadExitNotifier()
 		{
@@ -527,8 +535,8 @@ struct ProducerToken
 	}
 	
 	// Disable copying and assignment
-	ProducerToken(ProducerToken const&) = delete;
-	ProducerToken& operator=(ProducerToken const&) = delete;
+	ProducerToken(ProducerToken const&) MOODYCAMEL_DELETE_FUNCTION;
+	ProducerToken& operator=(ProducerToken const&) MOODYCAMEL_DELETE_FUNCTION;
 	
 private:
 	template<typename T, typename Traits> friend class ConcurrentQueue;
@@ -568,8 +576,8 @@ struct ConsumerToken
 	}
 	
 	// Disable copying and assignment
-	ConsumerToken(ConsumerToken const&) = delete;
-	ConsumerToken& operator=(ConsumerToken const&) = delete;
+	ConsumerToken(ConsumerToken const&) MOODYCAMEL_DELETE_FUNCTION;
+	ConsumerToken& operator=(ConsumerToken const&) MOODYCAMEL_DELETE_FUNCTION;
 
 private:
 	template<typename T, typename Traits> friend class ConcurrentQueue;
@@ -725,8 +733,8 @@ public:
 	}
 
 	// Disable copying and copy assignment
-	ConcurrentQueue(ConcurrentQueue const&) = delete;
-	ConcurrentQueue& operator=(ConcurrentQueue const&) = delete;
+	ConcurrentQueue(ConcurrentQueue const&) MOODYCAMEL_DELETE_FUNCTION;
+	ConcurrentQueue& operator=(ConcurrentQueue const&) MOODYCAMEL_DELETE_FUNCTION;
 	
 	// Moving is supported, but note that it is *not* a thread-safe operation.
 	// Nobody can use the queue while it's being moved, and the memory effects
@@ -1276,8 +1284,8 @@ private:
 		FreeList(FreeList&& other) : freeListHead(other.freeListHead.load(std::memory_order_relaxed)) { other.freeListHead.store(nullptr, std::memory_order_relaxed); }
 		void swap(FreeList& other) { details::swap_relaxed(freeListHead, other.freeListHead); }
 		
-		FreeList(FreeList const&) = delete;
-		FreeList& operator=(FreeList const&) = delete;
+		FreeList(FreeList const&) MOODYCAMEL_DELETE_FUNCTION;
+		FreeList& operator=(FreeList const&) MOODYCAMEL_DELETE_FUNCTION;
 		
 		inline void add(N* node)
 		{
