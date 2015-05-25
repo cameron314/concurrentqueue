@@ -112,10 +112,12 @@ namespace moodycamel { namespace details {
 #define MOODYCAMEL_TRY try
 #define MOODYCAMEL_CATCH(...) catch(__VA_ARGS__)
 #define MOODYCAMEL_RETHROW throw
+#define MOODYCAMEL_THROW(expr) throw (expr)
 #else
 #define MOODYCAMEL_TRY if (true)
 #define MOODYCAMEL_CATCH(...) else if (false)
 #define MOODYCAMEL_RETHROW
+#define MOODYCAMEL_THROW(expr)
 #endif
 #endif
 

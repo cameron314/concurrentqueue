@@ -351,7 +351,7 @@ public:
 	{
 		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
-			throw std::bad_alloc();
+			MOODYCAMEL_THROW(std::bad_alloc());
 		}
 	}
 	
@@ -360,7 +360,7 @@ public:
 	{
 		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
-			throw std::bad_alloc();
+			MOODYCAMEL_THROW(std::bad_alloc());
 		}
 	}
 	
