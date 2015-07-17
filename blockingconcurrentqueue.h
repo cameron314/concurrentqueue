@@ -167,6 +167,32 @@ namespace details
 		        while (rc == -1 && errno == EINTR);
 		    }
 
+		    bool wait_for_usecs(int64_t usecs) {
+		        int rc;
+                        struct timespec ts;
+                        const int usecs_in_1_sec = 1000000;
+                        const int nsecs_in_1_sec = 1000000000;
+                        clock_gettime(CLOCK_REALTIME, &ts);
+                        ts.tv_sec += usecs / usecs_in_1_sec;
+                        ts.tv_nsec += (usecs % usecs_in_1_sec) * 1000;
+                        // sem_timedwait bombs if you have more than 1e9 in tv_nsec
+                        // so we have to clean things up before passing it in
+                        if (ts.tv_nsec > nsecs_in_1_sec) {
+                            ts.tv_nsec -= nsecs_in_1_sec;
+                            ts.tv_sec += 1;
+                        }
+
+		        do {
+		            rc = sem_timedwait(&m_sema, &ts);
+		        } while (rc == -1 && errno == EINTR);
+
+		        if (rc == -1 && errno == ETIMEDOUT) {
+		            return false;
+		        } else {
+		            return true;
+		        }
+		    }
+
 		    void signal()
 		    {
 		        sem_post(&m_sema);
@@ -196,7 +222,7 @@ namespace details
 		    std::atomic<ssize_t> m_count;
 		    Semaphore m_sema;
 
-		    void waitWithPartialSpinning()
+		    bool waitWithPartialSpinning(int64_t timeout_usecs)
 		    {
 		        ssize_t oldCount;
 		        // Is there a better way to set the initial spin count?
@@ -207,14 +233,22 @@ namespace details
 		        {
 		            oldCount = m_count.load(std::memory_order_relaxed);
 		            if ((oldCount > 0) && m_count.compare_exchange_strong(oldCount, oldCount - 1, std::memory_order_acquire, std::memory_order_relaxed))
-		                return;
+		                return true;
 		            std::atomic_signal_fence(std::memory_order_acquire);     // Prevent the compiler from collapsing the loop.
 		        }
 		        oldCount = m_count.fetch_sub(1, std::memory_order_acquire);
 		        if (oldCount <= 0)
 		        {
-		            m_sema.wait();
+		            if (timeout_usecs >= 0)
+		            {
+		                return m_sema.wait_for_usecs(timeout_usecs);
+		            }
+		            else
+		            {
+		                m_sema.wait();
+		            }
 		        }
+		        return true;
 		    }
 
 		    ssize_t waitManyWithPartialSpinning(ssize_t max)
@@ -261,8 +295,17 @@ namespace details
 		    void wait()
 		    {
 		        if (!tryWait())
-		            waitWithPartialSpinning();
+		            waitWithPartialSpinning(-1);
 		    }
+
+		    bool wait_for_usecs(int64_t timeout_usecs)
+		    {
+		        if (!tryWait()) {
+		            return waitWithPartialSpinning(timeout_usecs);
+                        } else {
+                            return true;
+                        }
+                    }
 
 		    // Acquires between 0 and (greedily) max, inclusive
 		    ssize_t tryWaitMany(ssize_t max)
@@ -653,6 +696,19 @@ public:
 		while (!inner.try_dequeue(item)) {
 			continue;
 		}
+	}
+
+	template<typename U>
+	inline bool wait_dequeue_with_timeout(int64_t timeout_usecs, U& item)
+	{
+		// 0us is still a timeout, hence >=
+		if (timeout_usecs >= 0 && !sema->wait_for_usecs(timeout_usecs)) {
+            return false;
+        }
+		while (!inner.try_dequeue(item)) {
+			continue;
+		}
+        return true;
 	}
 	
 	// Blocks the current thread until there's something to dequeue, then
