@@ -1505,7 +1505,7 @@ private:
 		}
 		
 		inline T* operator[](index_t idx) MOODYCAMEL_NOEXCEPT { return reinterpret_cast<T*>(elements) + static_cast<size_t>(idx & static_cast<index_t>(BLOCK_SIZE - 1)); }
-		inline T const* operator[](index_t idx) const MOODYCAMEL_NOEXCEPT { return reinterpret_cast<T*>(elements) + static_cast<size_t>(idx & static_cast<index_t>(BLOCK_SIZE - 1)); }
+		inline T const* operator[](index_t idx) const MOODYCAMEL_NOEXCEPT { return reinterpret_cast<T const*>(elements) + static_cast<size_t>(idx & static_cast<index_t>(BLOCK_SIZE - 1)); }
 		
 	public:
 		Block* next;
