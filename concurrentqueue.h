@@ -258,13 +258,13 @@ struct ConcurrentQueueDefaultTraits
 #ifndef MCDBGQ_USE_RELACY
 	// Memory allocation can be customized if needed.
 	// malloc should return nullptr on failure, and handle alignment like std::malloc.
-	static inline void* malloc(size_t size) { return std::malloc(size); }
-	static inline void free(void* ptr) { return std::free(ptr); }
+	static inline void* _malloc(size_t size) { return malloc(size); }
+	static inline void _free(void* ptr) { return free(ptr); }
 #else
 	// Debug versions when running under the Relacy race detector (ignore
 	// these in user code)
-	static inline void* malloc(size_t size) { return rl::rl_malloc(size, $); }
-	static inline void free(void* ptr) { return rl::rl_free(ptr, $); }
+	static inline void* _malloc(size_t size) { return rl::rl_malloc(size, $); }
+	static inline void _free(void* ptr) { return rl::rl_free(ptr, $); }
 #endif
 };
 
@@ -722,7 +722,7 @@ public:
 						hash->entries[i].~ImplicitProducerKVP();
 					}
 					hash->~ImplicitProducerHash();
-					Traits::free(hash);
+					Traits::_free(hash);
 				}
 				hash = prev;
 			}
@@ -1682,7 +1682,7 @@ private:
 			while (header != nullptr) {
 				auto prev = static_cast<BlockIndexHeader*>(header->prev);
 				header->~BlockIndexHeader();
-				Traits::free(header);
+				Traits::_free(header);
 				header = prev;
 			}
 		}
@@ -2190,7 +2190,7 @@ private:
 			
 			// Create the new block
 			pr_blockIndexSize <<= 1;
-			auto newRawPtr = static_cast<char*>(Traits::malloc(sizeof(BlockIndexHeader) + std::alignment_of<BlockIndexEntry>::value - 1 + sizeof(BlockIndexEntry) * pr_blockIndexSize));
+			auto newRawPtr = static_cast<char*>(Traits::_malloc(sizeof(BlockIndexHeader) + std::alignment_of<BlockIndexEntry>::value - 1 + sizeof(BlockIndexEntry) * pr_blockIndexSize));
 			if (newRawPtr == nullptr) {
 				pr_blockIndexSize >>= 1;		// Reset to allow graceful retry
 				return false;
@@ -2308,7 +2308,7 @@ private:
 				do {
 					auto prev = localBlockIndex->prev;
 					localBlockIndex->~BlockIndexHeader();
-					Traits::free(localBlockIndex);
+					Traits::_free(localBlockIndex);
 					localBlockIndex = prev;
 				} while (localBlockIndex != nullptr);
 			}
@@ -2785,7 +2785,7 @@ private:
 			auto prev = blockIndex.load(std::memory_order_relaxed);
 			size_t prevCapacity = prev == nullptr ? 0 : prev->capacity;
 			auto entryCount = prev == nullptr ? nextBlockIndexCapacity : prevCapacity;
-			auto raw = static_cast<char*>(Traits::malloc(
+			auto raw = static_cast<char*>(Traits::_malloc(
 				sizeof(BlockIndexHeader) +
 				std::alignment_of<BlockIndexEntry>::value - 1 + sizeof(BlockIndexEntry) * entryCount +
 				std::alignment_of<BlockIndexEntry*>::value - 1 + sizeof(BlockIndexEntry*) * nextBlockIndexCapacity));
@@ -3275,7 +3275,7 @@ private:
 					while (newCount >= (newCapacity >> 1)) {
 						newCapacity <<= 1;
 					}
-					auto raw = static_cast<char*>(Traits::malloc(sizeof(ImplicitProducerHash) + std::alignment_of<ImplicitProducerKVP>::value - 1 + sizeof(ImplicitProducerKVP) * newCapacity));
+					auto raw = static_cast<char*>(Traits::_malloc(sizeof(ImplicitProducerHash) + std::alignment_of<ImplicitProducerKVP>::value - 1 + sizeof(ImplicitProducerKVP) * newCapacity));
 					if (raw == nullptr) {
 						// Allocation failed
 						implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
@@ -3399,7 +3399,7 @@ private:
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
-		auto p = static_cast<U*>(Traits::malloc(sizeof(U) * count));
+		auto p = static_cast<U*>(Traits::_malloc(sizeof(U) * count));
 		if (p == nullptr) {
 			return nullptr;
 		}
@@ -3418,21 +3418,21 @@ private:
 			for (size_t i = count; i != 0; ) {
 				(p + --i)->~U();
 			}
-			Traits::free(p);
+			Traits::_free(p);
 		}
 	}
 	
 	template<typename U>
 	static inline U* create()
 	{
-		auto p = Traits::malloc(sizeof(U));
+		auto p = Traits::_malloc(sizeof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
 	
 	template<typename U, typename A1>
 	static inline U* create(A1&& a1)
 	{
-		auto p = Traits::malloc(sizeof(U));
+		auto p = Traits::_malloc(sizeof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
 	
@@ -3442,7 +3442,7 @@ private:
 		if (p != nullptr) {
 			p->~U();
 		}
-		Traits::free(p);
+		Traits::_free(p);
 	}
 
 private:
