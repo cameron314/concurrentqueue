@@ -2412,10 +2412,6 @@ public:
 			
 			q.enqueue(tok, ThrowingMovable(4));
 			threw = false;
-			auto temp0 = MOODYCAMEL_NOEXCEPT_CTOR(ThrowingMovable, ThrowingMovable&&, nullptr);
-			auto temp1 = MOODYCAMEL_NOEXCEPT_CTOR(ThrowingMovable, ThrowingMovable const&, nullptr);
-			auto temp2 = MOODYCAMEL_NOEXCEPT_ASSIGN(ThrowingMovable, ThrowingMovable&&, nullptr);
-			auto temp3 = MOODYCAMEL_NOEXCEPT_ASSIGN(ThrowingMovable, ThrowingMovable const&, nullptr);
 			try {
 				q.enqueue(tok, ThrowingMovable(5, true));
 			}

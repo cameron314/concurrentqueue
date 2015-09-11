@@ -160,6 +160,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\tests\common\simplethread.cpp" />
     <ClCompile Include="..\..\tests\common\systemtime.cpp" />
+    <ClCompile Include="..\..\tests\unittests\mallocmacro.cpp" />
     <ClCompile Include="..\..\tests\unittests\unittests.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -161,6 +161,7 @@
     <ClCompile Include="..\..\tests\common\simplethread.cpp" />
     <ClCompile Include="..\..\tests\common\systemtime.cpp" />
     <ClCompile Include="..\..\tests\unittests\unittests.cpp" />
+    <ClCompile Include="..\..\tests\unittests\mallocmacro.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

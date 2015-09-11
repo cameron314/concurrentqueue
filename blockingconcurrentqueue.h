@@ -725,14 +725,14 @@ private:
 	template<typename U>
 	static inline U* create()
 	{
-		auto p = Traits::malloc(sizeof(U));
+		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
 	
 	template<typename U, typename A1>
 	static inline U* create(A1&& a1)
 	{
-		auto p = Traits::malloc(sizeof(U));
+		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
 	
@@ -742,7 +742,7 @@ private:
 		if (p != nullptr) {
 			p->~U();
 		}
-		Traits::free(p);
+		(Traits::free)(p);
 	}
 	
 private:
