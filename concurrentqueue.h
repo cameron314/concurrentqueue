@@ -508,7 +508,7 @@ struct ProducerToken
 	template<typename T, typename Traits>
 	explicit ProducerToken(BlockingConcurrentQueue<T, Traits>& queue);
 	
-	explicit ProducerToken(ProducerToken&& other) MOODYCAMEL_NOEXCEPT
+	ProducerToken(ProducerToken&& other) MOODYCAMEL_NOEXCEPT
 		: producer(other.producer)
 	{
 		other.producer = nullptr;
@@ -573,7 +573,7 @@ struct ConsumerToken
 	template<typename T, typename Traits>
 	explicit ConsumerToken(BlockingConcurrentQueue<T, Traits>& q);
 	
-	explicit ConsumerToken(ConsumerToken&& other) MOODYCAMEL_NOEXCEPT
+	ConsumerToken(ConsumerToken&& other) MOODYCAMEL_NOEXCEPT
 		: initialOffset(other.initialOffset), lastKnownGlobalOffset(other.lastKnownGlobalOffset), itemsConsumedFromCurrent(other.itemsConsumedFromCurrent), currentProducer(other.currentProducer), desiredProducer(other.desiredProducer)
 	{
 	}

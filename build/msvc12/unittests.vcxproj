@@ -151,6 +151,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\blockingconcurrentqueue.h" />
     <ClInclude Include="..\..\concurrentqueue.h" />
     <ClInclude Include="..\..\tests\common\simplethread.h" />
     <ClInclude Include="..\..\tests\common\systemtime.h" />

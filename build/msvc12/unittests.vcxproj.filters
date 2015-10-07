@@ -26,6 +26,9 @@
     <ClInclude Include="..\..\tests\common\systemtime.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\blockingconcurrentqueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\tests\common\simplethread.cpp">
