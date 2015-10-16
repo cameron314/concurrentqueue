@@ -73,34 +73,12 @@ namespace moodycamel { namespace details {
 	static const thread_id_t invalid_thread_id2 = 0xFFFFFFFEU;
 	static inline thread_id_t thread_id() { return rl::thread_index(); }
 } }
-#elif defined(_WIN32) || defined(__WINDOWS__) || defined(__WIN32__)
-// No sense pulling in windows.h in a header, we'll manually declare the function
-// we use and rely on backwards-compatibility for this not to break
-extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void);
-namespace moodycamel { namespace details {
-	static_assert(sizeof(unsigned long) == sizeof(std::uint32_t), "Expected size of unsigned long to be 32 bits on Windows");
-	typedef std::uint32_t thread_id_t;
-	static const thread_id_t invalid_thread_id  = 0;			// See http://blogs.msdn.com/b/oldnewthing/archive/2004/02/23/78395.aspx
-	static const thread_id_t invalid_thread_id2 = 0xFFFFFFFFU;	// Not technically guaranteed to be invalid, but is never used in practice. Note that all Win32 thread IDs are presently multiples of 4.
-	static inline thread_id_t thread_id() { return static_cast<thread_id_t>(::GetCurrentThreadId()); }
-} }
 #else
-// Use a nice trick from this answer: http://stackoverflow.com/a/8438730/21475
-// In order to get a numeric thread ID in a platform-independent way, we use a thread-local
-// static variable's address as a thread identifier :-)
-#if defined(__GNUC__) || defined(__INTEL_COMPILER)
-#define MOODYCAMEL_THREADLOCAL __thread
-#elif defined(_MSC_VER)
-#define MOODYCAMEL_THREADLOCAL __declspec(thread)
-#else
-// Assume C++11 compliant compiler
-#define MOODYCAMEL_THREADLOCAL thread_local
-#endif
 namespace moodycamel { namespace details {
-	typedef std::uintptr_t thread_id_t;
-	static const thread_id_t invalid_thread_id  = 0;		// Address can't be nullptr
-	static const thread_id_t invalid_thread_id2 = 1;		// Member accesses off a null pointer are also generally invalid. Plus it's not aligned.
-	static inline thread_id_t thread_id() { static MOODYCAMEL_THREADLOCAL int x; return reinterpret_cast<thread_id_t>(&x); }
+  typedef std::thread::id thread_id_t;
+  static inline thread_id_t thread_id() { return std::this_thread::get_id();}
+  static const thread_id_t invalid_thread_id;
+  static const thread_id_t invalid_thread_id2;
 } }
 #endif
 
@@ -306,7 +284,8 @@ namespace details
 		}
 	};
 	
-	template<bool use32> struct _hash_32_or_64 {
+  template <class T> struct hash_32_or_64;
+  template<> struct hash_32_or_64<std::uint32_t> {
 		static inline std::uint32_t hash(std::uint32_t h)
 		{
 			// MurmurHash3 finalizer -- see https://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp
@@ -320,7 +299,7 @@ namespace details
 			return h ^ (h >> 16);
 		}
 	};
-	template<> struct _hash_32_or_64<1> {
+  template<> struct hash_32_or_64<std::uint64_t> {
 		static inline std::uint64_t hash(std::uint64_t h)
 		{
 			h ^= h >> 33;
@@ -330,12 +309,19 @@ namespace details
 			return h ^ (h >> 33);
 		}
 	};
-	template<std::size_t size> struct hash_32_or_64 : public _hash_32_or_64<(size > 4)> {  };
+  template<> struct hash_32_or_64<std::thread::id> {
+    static inline std::hash<std::thread::id>::result_type hash(std::thread::id h)
+    {
+      std::hash<std::thread::id> hasher;
+      return hasher(h);
+    }
+  };
+
 	
 	static inline size_t hash_thread_id(thread_id_t id)
 	{
 		static_assert(sizeof(thread_id_t) <= 8, "Expected a platform where thread IDs are at most 64-bit values");
-		return static_cast<size_t>(hash_32_or_64<sizeof(thread_id_t)>::hash(id));
+    return static_cast<size_t>(hash_32_or_64<thread_id_t>::hash(id));
 	}
 	
 	template<typename T>
@@ -1194,8 +1180,7 @@ public:
 			details::static_is_lock_free<size_t>::value == 2 &&
 			details::static_is_lock_free<std::uint32_t>::value == 2 &&
 			details::static_is_lock_free<index_t>::value == 2 &&
-			details::static_is_lock_free<void*>::value == 2 &&
-			details::static_is_lock_free<details::thread_id_t>::value == 2;
+      details::static_is_lock_free<void*>::value == 2;
 	}
 
 
