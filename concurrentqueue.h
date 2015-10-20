@@ -301,7 +301,7 @@ namespace details
 		ProducerToken* token;
 		
 		ConcurrentQueueProducerTypelessBase()
-			: inactive(false), token(nullptr), next(nullptr)
+			: next(nullptr), inactive(false), token(nullptr)
 		{
 		}
 	};
@@ -1102,7 +1102,7 @@ public:
 	{
 		if (token.desiredProducer == nullptr || token.lastKnownGlobalOffset != globalExplicitConsumerOffset.load(std::memory_order_relaxed)) {
 			if (!update_current_producer_after_rotation(token)) {
-				return false;
+				return 0;
 			}
 		}
 		
@@ -1408,7 +1408,7 @@ private:
 	struct Block
 	{
 		Block()
-			: elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true), next(nullptr)
+			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
 		{
 #if MCDBGQ_TRACKMEM
 			owner = nullptr;
@@ -1677,11 +1677,14 @@ private:
 			if (this->tailBlock != nullptr) {
 				auto block = this->tailBlock;
 				do {
-					auto next = block->next;
+					auto nextBlock = block->next;
 					if (block->dynamicallyAllocated) {
 						destroy(block);
 					}
-					block = next;
+					else {
+						this->parent->add_block_to_free_list(block);
+					}
+					block = nextBlock;
 				} while (block != this->tailBlock);
 			}
 			
@@ -2289,9 +2292,9 @@ private:
 			bool forceFreeLastBlock = index != tail;		// If we enter the loop, then the last (tail) block will not be freed
 			while (index != tail) {
 				if ((index & static_cast<index_t>(BLOCK_SIZE - 1)) == 0 || block == nullptr) {
-					if (block != nullptr && block->dynamicallyAllocated) {
+					if (block != nullptr) {
 						// Free the old block
-						this->parent->destroy(block);
+						this->parent->add_block_to_free_list(block);
 					}
 					
 					block = get_block_index_entry_for_index(index)->value.load(std::memory_order_relaxed);
@@ -2303,8 +2306,8 @@ private:
 			// Even if the queue is empty, there's still one block that's not on the free list
 			// (unless the head index reached the end of it, in which case the tail will be poised
 			// to create a new block).
-			if (this->tailBlock != nullptr && (forceFreeLastBlock || (tail & static_cast<index_t>(BLOCK_SIZE - 1)) != 0) && this->tailBlock->dynamicallyAllocated) {
-				this->parent->destroy(this->tailBlock);
+			if (this->tailBlock != nullptr && (forceFreeLastBlock || (tail & static_cast<index_t>(BLOCK_SIZE - 1)) != 0)) {
+				this->parent->add_block_to_free_list(this->tailBlock);
 			}
 			
 			// Destroy block index
