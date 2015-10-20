@@ -301,7 +301,7 @@ namespace details
 		ProducerToken* token;
 		
 		ConcurrentQueueProducerTypelessBase()
-			: inactive(false), token(nullptr)
+			: inactive(false), token(nullptr), next(nullptr)
 		{
 		}
 	};
@@ -1408,7 +1408,7 @@ private:
 	struct Block
 	{
 		Block()
-			: elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
+			: elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true), next(nullptr)
 		{
 #if MCDBGQ_TRACKMEM
 			owner = nullptr;
@@ -3123,7 +3123,7 @@ private:
 		std::atomic<details::thread_id_t> key;
 		ImplicitProducer* value;		// No need for atomicity since it's only read by the thread that sets it in the first place
 		
-		ImplicitProducerKVP() { }
+		ImplicitProducerKVP() : value(nullptr) { }
 		
 		ImplicitProducerKVP(ImplicitProducerKVP&& other) MOODYCAMEL_NOEXCEPT
 		{
