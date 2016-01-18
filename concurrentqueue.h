@@ -63,9 +63,16 @@
 #include <limits>
 #include <climits>		// for CHAR_BIT
 #include <array>
-#include <thread>		// for __WINPTHREADS_VERSION if on MinGW-w64 w/ POSIX threading
+#include <thread>		// partly for __WINPTHREADS_VERSION if on MinGW-w64 w/ POSIX threading
 
 // Platform-specific definitions of a numeric thread ID type and an invalid value
+namespace moodycamel { namespace details {
+	template<typename thread_id_t> struct thread_id_converter {
+		typedef thread_id_t thread_id_numeric_size_t;
+		typedef thread_id_t thread_id_hash_t;
+		static thread_id_hash_t prehash(thread_id_t const& x) { return x; }
+	};
+} }
 #if defined(MCDBGQ_USE_RELACY)
 namespace moodycamel { namespace details {
 	typedef std::uint32_t thread_id_t;
@@ -83,6 +90,40 @@ namespace moodycamel { namespace details {
 	static const thread_id_t invalid_thread_id  = 0;			// See http://blogs.msdn.com/b/oldnewthing/archive/2004/02/23/78395.aspx
 	static const thread_id_t invalid_thread_id2 = 0xFFFFFFFFU;	// Not technically guaranteed to be invalid, but is never used in practice. Note that all Win32 thread IDs are presently multiples of 4.
 	static inline thread_id_t thread_id() { return static_cast<thread_id_t>(::GetCurrentThreadId()); }
+} }
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+namespace moodycamel { namespace details {
+	static_assert(sizeof(std::thread::id) == 4 || sizeof(std::thread::id) == 8, "std::thread::id is expected to be either 4 or 8 bytes");
+	
+	typedef std::thread::id thread_id_t;
+	static const thread_id_t invalid_thread_id;         // Default ctor creates invalid ID
+
+	// Note we don't define a invalid_thread_id2 since std::thread::id doesn't have one; it's
+	// only used if MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED is defined anyway, which it won't
+	// be.
+	static inline thread_id_t thread_id() { return std::this_thread::get_id(); }
+
+	template<std::size_t> struct thread_id_size { };
+	template<> struct thread_id_size<4> { typedef std::uint32_t numeric_t; };
+	template<> struct thread_id_size<8> { typedef std::uint64_t numeric_t; };
+
+	template<> struct thread_id_converter<thread_id_t> {
+		typedef thread_id_size<sizeof(thread_id_t)>::numeric_t thread_id_numeric_size_t;
+#ifndef __APPLE__
+		typedef std::size_t thread_id_hash_t;
+#else
+		typedef thread_id_numeric_size_t thread_id_hash_t;
+#endif
+
+		static thread_id_hash_t prehash(thread_id_t const& x)
+		{
+#ifndef __APPLE__
+			return std::hash<std::thread::id>()(x);
+#else
+			return *reinterpret_cast<thread_id_hash_t const*>(&x);
+#endif
+		}
+	};
 } }
 #else
 // Use a nice trick from this answer: http://stackoverflow.com/a/8438730/21475
@@ -147,8 +188,9 @@ namespace moodycamel { namespace details {
 #define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 #else
 //// VS2013 doesn't support `thread_local`, and MinGW-w64 w/ POSIX threading has a crippling bug: http://sourceforge.net/p/mingw-w64/bugs/445
-//// g++ <=4.7 doesn't support thread_local either
-//#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__) || !defined(__WINPTHREADS_VERSION)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+//// g++ <=4.7 doesn't support thread_local either.
+//// Finally, iOS/ARM doesn't have support for it either.
+//#if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__) || !defined(__WINPTHREADS_VERSION)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)) && (!defined(__APPLE__) || !TARGET_OS_IPHONE)
 //// Assume `thread_local` is fully supported in all other C++11 compilers/runtimes
 //#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 //#endif
@@ -335,7 +377,8 @@ namespace details
 	static inline size_t hash_thread_id(thread_id_t id)
 	{
 		static_assert(sizeof(thread_id_t) <= 8, "Expected a platform where thread IDs are at most 64-bit values");
-		return static_cast<size_t>(hash_32_or_64<sizeof(thread_id_t)>::hash(id));
+		return static_cast<size_t>(hash_32_or_64<sizeof(thread_id_converter<thread_id_t>::thread_id_hash_t)>::hash(
+			thread_id_converter<thread_id_t>::prehash(id)));
 	}
 	
 	template<typename T>
@@ -1195,7 +1238,7 @@ public:
 			details::static_is_lock_free<std::uint32_t>::value == 2 &&
 			details::static_is_lock_free<index_t>::value == 2 &&
 			details::static_is_lock_free<void*>::value == 2 &&
-			details::static_is_lock_free<details::thread_id_t>::value == 2;
+			details::static_is_lock_free<typename details::thread_id_converter<details::thread_id_t>::thread_id_numeric_size_t>::value == 2;
 	}
 
 
