@@ -42,6 +42,10 @@
 #endif
 #endif
 
+#if defined(__APPLE__)
+#include "TargetConditionals.h"
+#endif
+
 #ifdef MCDBGQ_USE_RELACY
 #include "relacy/relacy_std.hpp"
 #include "relacy_shims.h"
