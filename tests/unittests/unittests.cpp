@@ -4401,6 +4401,7 @@ void printTests(ConcurrentQueueTests const& tests)
 
 
 // Basic test harness
+#if !defined(TARGET_OS_IPHONE)
 int main(int argc, char** argv)
 {
 	bool disablePrompt = false;
@@ -4508,3 +4509,12 @@ int main(int argc, char** argv)
 	}
 	return exitCode;
 }
+#else
+// Provide entry function that can be invoked
+// by a test host (iOS app / test runner)
+bool runAllTests() {
+  unsigned int iterations = 8;
+  ConcurrentQueueTests tests;
+  return tests.run(iterations);
+}
+#endif // !defined(TARGET_OS_IPHONE)

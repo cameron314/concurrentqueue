@@ -76,6 +76,10 @@ private:
 // Thread local hash map
 ////////////////////////////////////////////////////////////////////////////////
 
+#if defined(__APPLE__)
+#include "TargetConditionals.h" // Needed for TARGET_OS_IPHONE
+#endif
+
 // Platform-specific definitions of a numeric thread ID type and an invalid value
 #if defined(_WIN32) || defined(__WINDOWS__) || defined(__WIN32__)
 // No sense pulling in windows.h in a header, we'll manually declare the function
@@ -86,6 +90,12 @@ namespace moodycamel { namespace corealgos { namespace details {
 	typedef std::uint32_t thread_id_t;
 	static const thread_id_t invalid_thread_id = 0;		// See http://blogs.msdn.com/b/oldnewthing/archive/2004/02/23/78395.aspx
 	static inline thread_id_t thread_id() { return static_cast<thread_id_t>(::GetCurrentThreadId()); }
+} } }
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+namespace moodycamel { namespace corealgos { namespace details {
+	typedef std::uintptr_t thread_id_t;
+	static const thread_id_t invalid_thread_id = 0;
+	static inline thread_id_t thread_id() { return std::hash<std::thread::id>()(std::this_thread::get_id()); }
 } } }
 #else
 // Use a nice trick from this answer: http://stackoverflow.com/a/8438730/21475
