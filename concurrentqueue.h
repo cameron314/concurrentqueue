@@ -1562,12 +1562,18 @@ private:
 		inline T* operator[](index_t idx) MOODYCAMEL_NOEXCEPT { return reinterpret_cast<T*>(elements) + static_cast<size_t>(idx & static_cast<index_t>(BLOCK_SIZE - 1)); }
 		inline T const* operator[](index_t idx) const MOODYCAMEL_NOEXCEPT { return reinterpret_cast<T const*>(elements) + static_cast<size_t>(idx & static_cast<index_t>(BLOCK_SIZE - 1)); }
 		
+	private:
+		// IMPORTANT: This must be the first member in Block, so that if T depends on the alignment of
+		// addresses returned by malloc, that alignment will be preserved. Apparently clang actually
+		// generates code that uses this assumption for AVX instructions in some cases. Ideally, we
+        // should also align Block to the alignment of T in case it's higher than malloc's 16-byte
+        // alignment, but this is hard to do in a cross-platform way. Assert for this case after the
+        // declaration of Block below.
+		char elements[sizeof(T) * BLOCK_SIZE];
 	public:
 		Block* next;
 		std::atomic<size_t> elementsCompletelyDequeued;
 		std::atomic<bool> emptyFlags[BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD ? BLOCK_SIZE : 1];
-	private:
-		char elements[sizeof(T) * BLOCK_SIZE];
 	public:
 		std::atomic<std::uint32_t> freeListRefs;
 		std::atomic<Block*> freeListNext;
@@ -1578,6 +1584,9 @@ private:
 		void* owner;
 #endif
 	};
+    
+    // See the above comment on `elements` in Block
+    static_assert(std::alignment_of<T>::value <= std::alignment_of<Block>::value, "The queue does not support super-aligned types at this time");
 
 
 #if MCDBGQ_TRACKMEM
