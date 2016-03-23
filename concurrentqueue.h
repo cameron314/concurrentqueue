@@ -1588,6 +1588,9 @@ private:
 #if MCDBGQ_TRACKMEM
 		void* owner;
 #endif
+		// Use a union with max_align_t on the last element in order to guarantee Blocks are a multiple of this size,
+		// so that arrays of Blocks are aligned to max_align_t. While this does waste a bit of memory, it is negligible
+		// compared to the size of the block as a whole (especially considering that blocks contain many elements each).
 		union {
 			bool dynamicallyAllocated;		// Perhaps a better name for this would be 'isNotPartOfInitialBlockPool'
 			details::max_align_t dummy;
