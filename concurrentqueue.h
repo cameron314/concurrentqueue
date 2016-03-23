@@ -235,6 +235,12 @@ namespace details {
 			? (static_cast<T>(1) << (sizeof(T) * CHAR_BIT - 1)) - static_cast<T>(1)
 			: static_cast<T>(-1);
 	};
+    
+#ifdef __GNUC__
+	typedef ::max_align_t max_align_t;      // GCC forgot to add it to std:: for a while
+#else
+	typedef std::max_align_t max_align_t;   // Others (e.g. MSVC) insist it can *only* be accessed via std::
+#endif
 }
 
 // Default traits for the ConcurrentQueue. To change some of the
@@ -1566,9 +1572,9 @@ private:
 		// IMPORTANT: This must be the first member in Block, so that if T depends on the alignment of
 		// addresses returned by malloc, that alignment will be preserved. Apparently clang actually
 		// generates code that uses this assumption for AVX instructions in some cases. Ideally, we
-        // should also align Block to the alignment of T in case it's higher than malloc's 16-byte
-        // alignment, but this is hard to do in a cross-platform way. Assert for this case after the
-        // declaration of Block below.
+		// should also align Block to the alignment of T in case it's higher than malloc's 16-byte
+		// alignment, but this is hard to do in a cross-platform way. Assert for this case:
+		static_assert(std::alignment_of<T>::value <= std::alignment_of<details::max_align_t>::value, "The queue does not support super-aligned types at this time");
 		char elements[sizeof(T) * BLOCK_SIZE];
 	public:
 		Block* next;
@@ -1578,15 +1584,16 @@ private:
 		std::atomic<std::uint32_t> freeListRefs;
 		std::atomic<Block*> freeListNext;
 		std::atomic<bool> shouldBeOnFreeList;
-		bool dynamicallyAllocated;		// Perhaps a better name for this would be 'isNotPartOfInitialBlockPool'
 		
 #if MCDBGQ_TRACKMEM
 		void* owner;
 #endif
+		union {
+			bool dynamicallyAllocated;		// Perhaps a better name for this would be 'isNotPartOfInitialBlockPool'
+			details::max_align_t dummy;
+		};
 	};
-    
-    // See the above comment on `elements` in Block
-    static_assert(std::alignment_of<T>::value <= std::alignment_of<Block>::value, "The queue does not support super-aligned types at this time");
+    static_assert(std::alignment_of<Block>::value >= std::alignment_of<details::max_align_t>::value, "Internal error: Blocks must be at least as aligned as the type they are wrapping");
 
 
 #if MCDBGQ_TRACKMEM
