@@ -14,7 +14,6 @@
 
 #include <boost/cstdint.hpp>
 
-#include <boost/lockfree/detail/branch_hints.hpp>
 
 namespace boost {
 namespace lockfree {
@@ -52,7 +51,7 @@ private:
         return cu.tag[tag_index];
     }
 
-    static compressed_ptr_t pack_ptr(T * ptr, int tag)
+    static compressed_ptr_t pack_ptr(T * ptr, tag_t tag)
     {
         cast_unit ret;
         ret.value = compressed_ptr_t(ptr);
@@ -132,7 +131,7 @@ public:
 
     tag_t get_next_tag() const
     {
-        tag_t next = (get_tag() + 1) & (std::numeric_limits<tag_t>::max)();
+        tag_t next = (get_tag() + 1u) & (std::numeric_limits<tag_t>::max)();
         return next;
     }
 
