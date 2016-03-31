@@ -59,6 +59,7 @@
 #include <atomic>		// Requires C++11. Sorry VS2010.
 #include <cassert>
 #endif
+#include <cstddef>              // for max_align_t
 #include <cstdint>
 #include <cstdlib>
 #include <type_traits>
