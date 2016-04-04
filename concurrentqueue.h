@@ -236,7 +236,7 @@ namespace details {
 			? (static_cast<T>(1) << (sizeof(T) * CHAR_BIT - 1)) - static_cast<T>(1)
 			: static_cast<T>(-1);
 	};
-    
+
 #ifdef __GNUC__
 	typedef ::max_align_t max_align_t;      // GCC forgot to add it to std:: for a while
 #else
@@ -1598,7 +1598,7 @@ private:
 		void* owner;
 #endif
 	};
-    static_assert(std::alignment_of<Block>::value >= std::alignment_of<details::max_align_t>::value, "Internal error: Blocks must be at least as aligned as the type they are wrapping");
+	static_assert(std::alignment_of<Block>::value >= std::alignment_of<details::max_align_t>::value, "Internal error: Blocks must be at least as aligned as the type they are wrapping");
 
 
 #if MCDBGQ_TRACKMEM
