@@ -5,7 +5,7 @@
 //    http://moodycamel.com/blog/2014/detailed-design-of-a-lock-free-queue
 
 // Simplified BSD license:
-// Copyright (c) 2013-2015, Cameron Desrochers.
+// Copyright (c) 2013-2016, Cameron Desrochers.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -943,7 +943,7 @@ public:
 	bool enqueue_bulk(It itemFirst, size_t count)
 	{
 		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue_bulk<CanAlloc>(std::forward<It>(itemFirst), count);
+		return inner_enqueue_bulk<CanAlloc>(itemFirst, count);
 	}
 	
 	// Enqueues several items using an explicit producer token.
@@ -955,7 +955,7 @@ public:
 	template<typename It>
 	bool enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
-		return inner_enqueue_bulk<CanAlloc>(token, std::forward<It>(itemFirst), count);
+		return inner_enqueue_bulk<CanAlloc>(token, itemFirst, count);
 	}
 	
 	// Enqueues a single item (by copying it).
@@ -1007,7 +1007,7 @@ public:
 	bool try_enqueue_bulk(It itemFirst, size_t count)
 	{
 		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue_bulk<CannotAlloc>(std::forward<It>(itemFirst), count);
+		return inner_enqueue_bulk<CannotAlloc>(itemFirst, count);
 	}
 	
 	// Enqueues several items using an explicit producer token.
@@ -1018,7 +1018,7 @@ public:
 	template<typename It>
 	bool try_enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
-		return inner_enqueue_bulk<CannotAlloc>(token, std::forward<It>(itemFirst), count);
+		return inner_enqueue_bulk<CannotAlloc>(token, itemFirst, count);
 	}
 	
 	
@@ -1282,14 +1282,14 @@ private:
 	template<AllocationMode canAlloc, typename It>
 	inline bool inner_enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
-		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue_bulk<canAlloc>(std::forward<It>(itemFirst), count);
+		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue_bulk<canAlloc>(itemFirst, count);
 	}
 	
 	template<AllocationMode canAlloc, typename It>
 	inline bool inner_enqueue_bulk(It itemFirst, size_t count)
 	{
 		auto producer = get_or_add_implicit_producer();
-		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue_bulk<canAlloc>(std::forward<It>(itemFirst), count);
+		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue_bulk<canAlloc>(itemFirst, count);
 	}
 	
 	inline bool update_current_producer_after_rotation(consumer_token_t& token)
