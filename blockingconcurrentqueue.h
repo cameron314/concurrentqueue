@@ -130,6 +130,23 @@ namespace details
 			{
 				semaphore_wait(m_sema);
 			}
+			
+			bool try_wait()
+			{
+				return timed_wait(0);
+			}
+			
+			bool timed_wait(std::int64_t timeout_usecs)
+			{
+				mach_timespec_t ts;
+				ts.tv_sec = timeout_usecs / 1000000;
+				ts.tv_nsec = (timeout_usecs % 1000000) * 1000;
+
+				// added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
+				kern_return_t rc = semaphore_timedwait(m_sema, ts);
+
+				return rc != KERN_OPERATION_TIMED_OUT;
+			}
 
 			void signal()
 			{
