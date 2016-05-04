@@ -157,18 +157,23 @@ struct Copyable {
 };
 
 struct Moveable {
-	Moveable(int id) : moved(false), id(id) { }
-	Moveable(Moveable&& o) MOODYCAMEL_NOEXCEPT : moved(true), id(o.id) { }
-	void operator=(Moveable&& o) MOODYCAMEL_NOEXCEPT { moved = true; id = o.id; }
+	Moveable(int id) : moved(false), copied(false), id(id) { }
+	Moveable(Moveable&& o) MOODYCAMEL_NOEXCEPT : moved(true), copied(o.copied), id(o.id) { }
+	void operator=(Moveable&& o) MOODYCAMEL_NOEXCEPT { moved = true; copied = o.copied; id = o.id; }
 	bool moved;
+	bool copied;
 	int id;
 
 #if defined(_MSC_VER) && _MSC_VER < 1800
-	Moveable(Moveable const& o) MOODYCAMEL_NOEXCEPT : moved(o.moved), id(o.id) { }
-	void operator=(Moveable const& o) MOODYCAMEL_NOEXCEPT { moved = o.moved; id = o.id; }
+	// VS2012's std::is_nothrow_[move_]constructible is broken, so the queue never attempts to
+	// move objects with that compiler. In this case, we don't know whether it's really a copy
+	// or not being done, so give the benefit of the doubt (given the tests pass on other platforms)
+	// and assume it would have done a move if it could have (don't set copied to true).
+	Moveable(Moveable const& o) MOODYCAMEL_NOEXCEPT : moved(o.moved), copied(o.copied), id(o.id) { }
+	void operator=(Moveable const& o) MOODYCAMEL_NOEXCEPT { moved = o.moved; copied = o.copied; id = o.id; }
 #else
-	Moveable(Moveable const&) MOODYCAMEL_DELETE_FUNCTION;
-	void operator=(Moveable const&) MOODYCAMEL_DELETE_FUNCTION;
+	Moveable(Moveable const& o) MOODYCAMEL_NOEXCEPT : moved(o.moved), copied(true), id(o.id) { }
+	void operator=(Moveable const& o) MOODYCAMEL_NOEXCEPT { moved = o.moved; copied = true; id = o.id; }
 #endif
 };
 
@@ -2412,10 +2417,6 @@ public:
 			
 			q.enqueue(tok, ThrowingMovable(4));
 			threw = false;
-			auto temp0 = MOODYCAMEL_NOEXCEPT_CTOR(ThrowingMovable, ThrowingMovable&&, nullptr);
-			auto temp1 = MOODYCAMEL_NOEXCEPT_CTOR(ThrowingMovable, ThrowingMovable const&, nullptr);
-			auto temp2 = MOODYCAMEL_NOEXCEPT_ASSIGN(ThrowingMovable, ThrowingMovable&&, nullptr);
-			auto temp3 = MOODYCAMEL_NOEXCEPT_ASSIGN(ThrowingMovable, ThrowingMovable const&, nullptr);
 			try {
 				q.enqueue(tok, ThrowingMovable(5, true));
 			}
@@ -3099,6 +3100,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3109,6 +3111,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3143,6 +3146,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3154,6 +3158,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3187,6 +3192,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3197,6 +3203,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3231,6 +3238,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3242,6 +3250,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3274,6 +3283,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
@@ -3298,6 +3308,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
@@ -3320,6 +3331,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
@@ -3344,6 +3356,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
@@ -3364,6 +3377,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
@@ -3387,6 +3401,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(t, item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(t, item));
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
@@ -3411,6 +3426,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue_from_producer(t, item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue_from_producer(t, item));
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
@@ -3432,6 +3448,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue_bulk(&item, 1) == 1);
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue_bulk(&item, 1));
 		}
 		
@@ -3455,6 +3472,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue_bulk(t, &item, 1));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue_bulk(t, &item, 1));
 			ASSERT_OR_FAIL(!q.try_dequeue_bulk(&item, 1));
 		}
@@ -3479,6 +3497,7 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue_bulk_from_producer(t, &item, 1));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue_bulk_from_producer(t, &item, 1));
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
@@ -4405,6 +4424,7 @@ void printTests(ConcurrentQueueTests const& tests)
 
 
 // Basic test harness
+#if !defined(TARGET_OS_IPHONE)
 int main(int argc, char** argv)
 {
 	bool disablePrompt = false;
@@ -4512,3 +4532,12 @@ int main(int argc, char** argv)
 	}
 	return exitCode;
 }
+#else
+// Provide entry function that can be invoked
+// by a test host (iOS app / test runner)
+bool runAllTests() {
+  unsigned int iterations = 8;
+  ConcurrentQueueTests tests;
+  return tests.run(iterations);
+}
+#endif // !defined(TARGET_OS_IPHONE)

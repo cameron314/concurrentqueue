@@ -672,8 +672,8 @@ void on_signal(int signal)
 extern "C" void signal_handler(int signal)
 {
 	on_signal(signal);
-	if (g_prev_sigsegv.load(std::memory_order_relaxed) != nullptr) {
-		g_prev_sigsegv(signal);
+	if (signal_handler_t handler_fn = g_prev_sigsegv.load(std::memory_order_relaxed)) {
+		handler_fn(signal);
 	}
 	else {
 		std::exit(signal);
