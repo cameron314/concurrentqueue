@@ -9,6 +9,7 @@
 #include "concurrentqueue.h"
 #include <type_traits>
 #include <memory>
+#include <chrono>
 
 #if defined(_WIN32)
 // Avoid including windows.h in a header; we only need a handful of
@@ -27,6 +28,7 @@ extern "C" {
 #include <mach/mach.h>
 #elif defined(__unix__)
 #include <semaphore.h>
+#include <cerrno>
 #endif
 
 namespace moodycamel
@@ -775,6 +777,16 @@ public:
 		}
 		return true;
 	}
+    
+    // Blocks the current thread until either there's something to dequeue
+	// or the timeout expires. Returns false without setting `item` if the
+    // timeout expires, otherwise assigns to `item` and returns true.
+	// Never allocates. Thread-safe.
+	template<typename U, typename Rep, typename Period>
+	inline bool wait_dequeue_timed(U& item, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return wait_dequeue_timed(item, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+    }
 	
 	// Blocks the current thread until there's something to dequeue, then
 	// dequeues it using an explicit consumer token.
@@ -806,6 +818,16 @@ public:
 		}
 		return true;
 	}
+    
+    // Blocks the current thread until either there's something to dequeue
+	// or the timeout expires. Returns false without setting `item` if the
+    // timeout expires, otherwise assigns to `item` and returns true.
+	// Never allocates. Thread-safe.
+	template<typename U, typename Rep, typename Period>
+	inline bool wait_dequeue_timed(consumer_token_t& token, U& item, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return wait_dequeue_timed(token, item, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+    }
 	
 	// Attempts to dequeue several elements from the queue.
 	// Returns the number of items actually dequeued, which will
@@ -840,6 +862,17 @@ public:
 		}
 		return count;
 	}
+    
+    // Attempts to dequeue several elements from the queue.
+	// Returns the number of items actually dequeued, which can
+	// be 0 if the timeout expires while waiting for elements,
+	// and at most max.
+	// Never allocates. Thread-safe.
+	template<typename It, typename Rep, typename Period>
+	inline size_t wait_dequeue_bulk_timed(It itemFirst, size_t max, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return wait_dequeue_bulk_timed<It&>(itemFirst, max, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+    }
 	
 	// Attempts to dequeue several elements from the queue using an explicit consumer token.
 	// Returns the number of items actually dequeued, which will
@@ -874,6 +907,17 @@ public:
 		}
 		return count;
 	}
+	
+	// Attempts to dequeue several elements from the queue using an explicit consumer token.
+	// Returns the number of items actually dequeued, which can
+	// be 0 if the timeout expires while waiting for elements,
+	// and at most max.
+	// Never allocates. Thread-safe.
+	template<typename It, typename Rep, typename Period>
+	inline size_t wait_dequeue_bulk_timed(consumer_token_t& token, It itemFirst, size_t max, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return wait_dequeue_bulk_timed<It&>(token, itemFirst, max, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+    }
 	
 	
 	// Returns an estimate of the total number of elements currently in the queue. This
