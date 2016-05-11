@@ -164,10 +164,14 @@ As mentioned above, a full blocking wrapper of the queue is provided that adds
 This wrapper is extremely low-overhead, but slightly less fast than the non-blocking
 queue (due to the necessary bookkeeping involving a lightweight semaphore).
 
+There are also timed versions that allow a timeout to be specified (either in microseconds
+or with a `std::chrono` object).
+
 The only major caveat with the blocking version is that you must be careful not to
 destroy the queue while somebody is waiting on it. This generally means you need to
 know for certain that another element is going to come along before you call one of
-the blocking methods.
+the blocking methods. (To be fair, the non-blocking version cannot be destroyed while
+in use either, but it can be easier to coordinate the cleanup.)
 
 Blocking example:
 
@@ -176,6 +180,7 @@ Blocking example:
     moodycamel::BlockingConcurrentQueue<int> q;
     std::thread producer([&]() {
         for (int i = 0; i != 100; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(i % 10));
             q.enqueue(i);
         }
     });
@@ -184,6 +189,11 @@ Blocking example:
             int item;
             q.wait_dequeue(item);
             assert(item == i);
+            
+            if (q.wait_dequeue_timed(item, std::chrono::milliseconds(5))) {
+                ++i;
+                assert(item == i);
+            }
         }
     });
     producer.join();
