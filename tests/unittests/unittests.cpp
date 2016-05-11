@@ -285,6 +285,7 @@ public:
 		REGISTER_TEST(full_api<ConcurrentQueueDefaultTraits>);
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
+		REGISTER_TEST(timed_blocking_wrappers);
 		
 		// Core algos
 		REGISTER_TEST(core_add_only_list);
@@ -4035,6 +4036,234 @@ public:
 		return true;
 	}
 	
+	bool timed_blocking_wrappers()
+	{
+		typedef BlockingConcurrentQueue<int, MallocTrackingTraits> Q;
+		
+		// Implicit
+		{
+			Q q;
+			int item;
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 0));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 1));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 100));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, std::chrono::milliseconds(1)));
+			q.enqueue(123);
+			ASSERT_OR_FAIL(q.wait_dequeue_timed(item, 0));
+			ASSERT_OR_FAIL(item == 123);
+		}
+		
+		// Implicit, threaded
+		{
+			Q q;
+			const int THREADS = 8;
+			SimpleThread threads[THREADS];
+			bool success[THREADS];
+			
+			for (int i = 0; i != THREADS; ++i) {
+				success[i] = true;
+				
+				if (i % 2 == 0) {
+					// Enqueue
+					if (i % 4 == 0) {
+						threads[i] = SimpleThread([&](int j) {
+							int stuff[5];
+							for (int k = 0; k != 2048; ++k) {
+								for (int x = 0; x != 5; ++x) {
+									stuff[x] = (j << 16) | (k * 5 + x);
+								}
+								success[j] = q.enqueue_bulk(stuff, 5) && success[j];
+							}
+						}, i);
+					}
+					else {
+						threads[i] = SimpleThread([&](int j) {
+							for (int k = 0; k != 4096; ++k) {
+								success[j] = q.enqueue((j << 16) | k) && success[j];
+							}
+						}, i);
+					}
+				}
+				else {
+					// Dequeue
+					threads[i] = SimpleThread([&](int j) {
+						int item;
+						std::vector<int> prevItems(THREADS, -1);
+						if (j % 4 == 1) {
+							for (int k = 0; k != 2048 * 5; ++k) {
+								if (!q.wait_dequeue_timed(item, 1000)) {
+									--k;
+									continue;
+								}
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+						else {
+							int items[6];
+							int k;
+							for (k = 0; k < 4090; ) {
+								if (std::size_t dequeued = q.wait_dequeue_bulk_timed(items, 6, 1000)) {
+									for (std::size_t x = 0; x != dequeued; ++x) {
+										item = items[x];
+										int thread = item >> 16;
+										item &= 0xffff;
+										if (item <= prevItems[thread]) {
+											success[j] = false;
+										}
+										prevItems[thread] = item;
+									}
+									k += (int)dequeued;
+								}
+							}
+							for (; k != 4096; ++k) {
+								if (!q.wait_dequeue_timed(item, std::chrono::hours(1))) {
+									success[j] = false;
+								}
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+					}, i);
+				}
+			}
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i].join();
+			}
+			
+			for (int i = 0; i != THREADS; ++i) {
+				ASSERT_OR_FAIL(success[i]);
+			}
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			int item;
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 0));
+		}
+		
+		// Explicit
+		{
+			Q q;
+			ProducerToken ptok(q);
+			ConsumerToken ctok(q);
+			int item;
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(ctok, item, 0));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(ctok, item, 1));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(ctok, item, 100));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(ctok, item, std::chrono::milliseconds(1)));
+			q.enqueue(ptok, 123);
+			ASSERT_OR_FAIL(q.wait_dequeue_timed(ctok, item, 0));
+			ASSERT_OR_FAIL(item == 123);
+		}
+		
+		// Explicit, threaded
+		{
+			Q q;
+			const int THREADS = 8;
+			SimpleThread threads[THREADS];
+			bool success[THREADS];
+			
+			for (int i = 0; i != THREADS; ++i) {
+				success[i] = true;
+				
+				if (i % 2 == 0) {
+					// Enqueue
+					if (i % 4 == 0) {
+						threads[i] = SimpleThread([&](int j) {
+							ProducerToken tok(q);
+							int stuff[5];
+							for (int k = 0; k != 2048; ++k) {
+								for (int x = 0; x != 5; ++x) {
+									stuff[x] = (j << 16) | (k * 5 + x);
+								}
+								success[j] = q.enqueue_bulk(tok, stuff, 5) && success[j];
+							}
+						}, i);
+					}
+					else {
+						threads[i] = SimpleThread([&](int j) {
+							ProducerToken tok(q);
+							for (int k = 0; k != 4096; ++k) {
+								success[j] = q.enqueue(tok, (j << 16) | k) && success[j];
+							}
+						}, i);
+					}
+				}
+				else {
+					// Dequeue
+					threads[i] = SimpleThread([&](int j) {
+						int item;
+						std::vector<int> prevItems(THREADS, -1);
+						ConsumerToken tok(q);
+						if (j % 4 == 1) {
+							for (int k = 0; k != 2048 * 5; ++k) {
+								if (!q.wait_dequeue_timed(tok, item, 1000)) {
+									--k;
+									continue;
+								}
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+						else {
+							int items[6];
+							int k;
+							for (k = 0; k < 4090; ) {
+								if (std::size_t dequeued = q.wait_dequeue_bulk_timed(tok, items, 6, 1000)) {
+									for (std::size_t x = 0; x != dequeued; ++x) {
+										item = items[x];
+										int thread = item >> 16;
+										item &= 0xffff;
+										if (item <= prevItems[thread]) {
+											success[j] = false;
+										}
+										prevItems[thread] = item;
+									}
+									k += (int)dequeued;
+								}
+							}
+							for (; k != 4096; ++k) {
+								if (!q.wait_dequeue_timed(tok, item, std::chrono::hours(1))) {
+									success[j] = false;
+								}
+								int thread = item >> 16;
+								item &= 0xffff;
+								if (item <= prevItems[thread]) {
+									success[j] = false;
+								}
+								prevItems[thread] = item;
+							}
+						}
+					}, i);
+				}
+			}
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i].join();
+			}
+			
+			for (int i = 0; i != THREADS; ++i) {
+				ASSERT_OR_FAIL(success[i]);
+			}
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			int item;
+			ConsumerToken tok(q);
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(tok, item, 0));
+		}
+		
+		return true;
+	}
 	
 	struct TestListItem : corealgos::ListItem
 	{

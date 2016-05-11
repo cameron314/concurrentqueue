@@ -8,6 +8,7 @@
 
 #include "concurrentqueue.h"
 #include <type_traits>
+#include <cerrno>
 #include <memory>
 #include <chrono>
 
@@ -28,7 +29,6 @@ extern "C" {
 #include <mach/mach.h>
 #elif defined(__unix__)
 #include <semaphore.h>
-#include <cerrno>
 #endif
 
 namespace moodycamel
