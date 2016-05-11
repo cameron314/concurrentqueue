@@ -5,8 +5,12 @@
 *.opensdf
 *.exe
 *.pdb
+*.vs
+*.VC.db
 build/bin/
 build/*.log
+build/msvc14/*.log
+build/msvc14/obj/
 build/msvc12/*.log
 build/msvc12/obj/
 build/msvc11/*.log
