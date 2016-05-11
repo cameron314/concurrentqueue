@@ -138,7 +138,7 @@ namespace details
 				return timed_wait(0);
 			}
 			
-			bool timed_wait(std::int64_t timeout_usecs)
+			bool timed_wait(std::uint64_t timeout_usecs)
 			{
 				mach_timespec_t ts;
 				ts.tv_sec = timeout_usecs / 1000000;
@@ -278,7 +278,7 @@ namespace details
 					m_sema.wait();
 					return true;
 				}
-				if (m_sema.timed_wait(timeout_usecs))
+				if (m_sema.timed_wait((std::uint64_t)timeout_usecs))
 					return true;
 				// At this point, we've timed out waiting for the semaphore, but the
 				// count is still decremented indicating we may still be waiting on
@@ -316,7 +316,7 @@ namespace details
 				{
 					if (timeout_usecs < 0)
 						m_sema.wait();
-					else if (!m_sema.timed_wait(timeout_usecs))
+					else if (!m_sema.timed_wait((std::uint64_t)timeout_usecs))
 					{
 						while (true)
 						{
