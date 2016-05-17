@@ -13,6 +13,8 @@ struct BoostQueueWrapper
 	typedef DummyToken consumer_token_t;
 	
 public:
+  BoostQueueWrapper() : q(/* starting capacity */ 16384) { }
+
 	template<typename U>
 	inline bool enqueue(U&& item)
 	{
