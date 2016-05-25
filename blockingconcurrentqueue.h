@@ -288,10 +288,10 @@ namespace details
 				while (true)
 				{
 					oldCount = m_count.load(std::memory_order_acquire);
-					if (oldCount < 0 && m_count.compare_exchange_strong(oldCount, oldCount + 1, std::memory_order_relaxed, std::memory_order_acquire))
-						return false;
 					if (oldCount >= 0 && m_sema.try_wait())
 						return true;
+					if (oldCount < 0 && m_count.compare_exchange_strong(oldCount, oldCount + 1, std::memory_order_relaxed))
+						return false;
 				}
 			}
 
@@ -321,10 +321,10 @@ namespace details
 						while (true)
 						{
 							oldCount = m_count.load(std::memory_order_acquire);
-							if (oldCount < 0 && m_count.compare_exchange_strong(oldCount, oldCount + 1, std::memory_order_relaxed))
-								return 0;
 							if (oldCount >= 0 && m_sema.try_wait())
 								break;
+							if (oldCount < 0 && m_count.compare_exchange_strong(oldCount, oldCount + 1, std::memory_order_relaxed))
+								return 0;
 						}
 					}
 				}
