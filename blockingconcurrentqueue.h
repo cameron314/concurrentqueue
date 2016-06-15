@@ -11,6 +11,7 @@
 #include <cerrno>
 #include <memory>
 #include <chrono>
+#include <ctime>
 
 #if defined(_WIN32)
 // Avoid including windows.h in a header; we only need a handful of
