@@ -284,7 +284,7 @@ integer division (in order for `ceil()` to work).
 
 For explicit producers (using tokens to enqueue):
 
-    (ceil(N / BLOCK_SIZE) + 1) * MAX_NUM_PRODUCERS * BLOCK_SIZ
+    (ceil(N / BLOCK_SIZE) + 1) * MAX_NUM_PRODUCERS * BLOCK_SIZE
 
 For implicit producers (no tokens):
 
@@ -295,7 +295,7 @@ When using mixed producer types:
     ((ceil(N / BLOCK_SIZE) - 1) * (MAX_EXPLICIT_PRODUCERS + 1) + 2 * (MAX_IMPLICIT_PRODUCERS + MAX_EXPLICIT_PRODUCERS)) * BLOCK_SIZE
 
 If these formulas seem rather inconvenient, you can use the constructor overload that accepts the minimum
-number of elements (`N`) and the maximum number of producers and consumers directly, and let it do the
+number of elements (`N`) and the maximum number of explicit and implicit producers directly, and let it do the
 computation for you.
 
 Finally, it's important to note that because the queue is only eventually consistent and takes advantage of
