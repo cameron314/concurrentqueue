@@ -408,7 +408,8 @@ a unit test for it can be cooked up.) Just open an issue on GitHub.
 I'm releasing the source of this repository (with the exception of third-party code, i.e. the Boost queue
 (used in the benchmarks for comparison), Intel's TBB library (ditto), CDSChecker, Relacy, and Jeff Preshing's
 cross-platform semaphore, which all have their own licenses)
-under a [simplified BSD license][license].
+under a simplified BSD license. I'm also dual-licensing under the Boost Software License.
+See the [LICENSE.md][license] file for more details.
 
 Note that lock-free programming is a patent minefield, and this code may very
 well violate a pending patent (I haven't looked), though it does not to my present knowledge.
