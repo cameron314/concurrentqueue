@@ -240,17 +240,10 @@ namespace details {
 	};
 
 #if defined(__GNUC__) && !defined( __clang__ )
-	typedef ::max_align_t std_max_align_t;      // GCC forgot to add it to std:: for a while
+	typedef ::max_align_t max_align_t;      // GCC forgot to add it to std:: for a while
 #else
-	typedef std::max_align_t std_max_align_t;   // Others (e.g. MSVC) insist it can *only* be accessed via std::
+	typedef std::max_align_t max_align_t;   // Others (e.g. MSVC) insist it can *only* be accessed via std::
 #endif
-	// Some platforms have incorrectly set max_align_t to a type with <8 bytes alignment even while supporting
-	// 8-byte aligned scalar values (looking at you, iOS). Work around this with our own union. See issue #64.
-	typedef union {
-		std_max_align_t x;
-		long double y;
-		void* z;
-	} max_align_t;
 }
 
 // Default traits for the ConcurrentQueue. To change some of the
