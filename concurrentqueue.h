@@ -2540,7 +2540,13 @@ private:
 		
 			return false;
 		}
-		
+
+#   ifdef _MSC_VER
+#       pragma warning( push )
+#       pragma warning( disable : 4701 ) // Potentially uninitialized local variable 'idxEntry' used.
+#       pragma warning( disable : 4703 ) // Potentially uninitialized local pointer variable 'idxEntry' used.
+#       pragma warning( disable : 4706 ) // Assignment within conditional expression.
+#   endif // _MSC_VER
 		template<AllocationMode allocMode, typename It>
 		bool enqueue_bulk(It itemFirst, size_t count)
 		{
@@ -2654,11 +2660,11 @@ private:
 							}
 							currentTailIndex = startTailIndex;
 							while (true) {
-								stopIndex = (currentTailIndex & ~static_cast<index_t>(BLOCK_SIZE - 1)) + static_cast<index_t>(BLOCK_SIZE);
-								if (details::circular_less_than<index_t>(constructedStopIndex, stopIndex)) {
-									stopIndex = constructedStopIndex;
+								auto localStopIndex = (currentTailIndex & ~static_cast<index_t>(BLOCK_SIZE - 1)) + static_cast<index_t>(BLOCK_SIZE);
+								if (details::circular_less_than<index_t>(constructedStopIndex, localStopIndex)) {
+									localStopIndex = constructedStopIndex;
 								}
-								while (currentTailIndex != stopIndex) {
+								while (currentTailIndex != localStopIndex) {
 									(*block)[currentTailIndex++]->~T();
 								}
 								if (block == lastBlockEnqueued) {
@@ -2690,6 +2696,9 @@ private:
 			this->tailIndex.store(newTailIndex, std::memory_order_release);
 			return true;
 		}
+#   ifdef _MSC_VER
+#       pragma warning( pop )
+#   endif // _MSC_VER
 		
 		template<typename It>
 		size_t dequeue_bulk(It& itemFirst, size_t max)
@@ -3595,7 +3604,7 @@ ConsumerToken::ConsumerToken(ConcurrentQueue<T, Traits>& queue)
 	: itemsConsumedFromCurrent(0), currentProducer(nullptr), desiredProducer(nullptr)
 {
 	initialOffset = queue.nextExplicitConsumerId.fetch_add(1, std::memory_order_release);
-	lastKnownGlobalOffset = -1;
+	lastKnownGlobalOffset = static_cast<std::uint32_t>( -1 );
 }
 
 template<typename T, typename Traits>
@@ -3603,7 +3612,7 @@ ConsumerToken::ConsumerToken(BlockingConcurrentQueue<T, Traits>& queue)
 	: itemsConsumedFromCurrent(0), currentProducer(nullptr), desiredProducer(nullptr)
 {
 	initialOffset = reinterpret_cast<ConcurrentQueue<T, Traits>*>(&queue)->nextExplicitConsumerId.fetch_add(1, std::memory_order_release);
-	lastKnownGlobalOffset = -1;
+	lastKnownGlobalOffset = static_cast<std::uint32_t>( -1 );
 }
 
 template<typename T, typename Traits>
