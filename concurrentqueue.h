@@ -1615,14 +1615,14 @@ private:
 	
 	struct ProducerBase : public details::ConcurrentQueueProducerTypelessBase
 	{
-		ProducerBase(ConcurrentQueue* parent, bool isExplicit) :
+		ProducerBase(ConcurrentQueue* parent_, bool isExplicit_) :
 			tailIndex(0),
 			headIndex(0),
 			dequeueOptimisticCount(0),
 			dequeueOvercommit(0),
 			tailBlock(nullptr),
-			isExplicit(isExplicit),
-			parent(parent)
+			isExplicit(isExplicit_),
+			parent(parent_)
 		{
 		}
 		
@@ -2123,7 +2123,7 @@ private:
 							}
 							currentTailIndex = startTailIndex;
 							while (true) {
-								auto stopIndex = (currentTailIndex & ~static_cast<index_t>(BLOCK_SIZE - 1)) + static_cast<index_t>(BLOCK_SIZE);
+								stopIndex = (currentTailIndex & ~static_cast<index_t>(BLOCK_SIZE - 1)) + static_cast<index_t>(BLOCK_SIZE);
 								if (details::circular_less_than<index_t>(constructedStopIndex, stopIndex)) {
 									stopIndex = constructedStopIndex;
 								}
@@ -2644,7 +2644,7 @@ private:
 							}
 							currentTailIndex = startTailIndex;
 							while (true) {
-								auto stopIndex = (currentTailIndex & ~static_cast<index_t>(BLOCK_SIZE - 1)) + static_cast<index_t>(BLOCK_SIZE);
+								stopIndex = (currentTailIndex & ~static_cast<index_t>(BLOCK_SIZE - 1)) + static_cast<index_t>(BLOCK_SIZE);
 								if (details::circular_less_than<index_t>(constructedStopIndex, stopIndex)) {
 									stopIndex = constructedStopIndex;
 								}
