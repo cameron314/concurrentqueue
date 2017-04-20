@@ -2807,6 +2807,9 @@ private:
 		inline bool insert_block_index_entry(BlockIndexEntry*& idxEntry, index_t blockStartIndex)
 		{
 			auto localBlockIndex = blockIndex.load(std::memory_order_relaxed);		// We're the only writer thread, relaxed is OK
+			if (localBlockIndex == nullptr) {
+				return false;  // this can happen if new_block_index failed in the constructor
+			}
 			auto newTail = (localBlockIndex->tail.load(std::memory_order_relaxed) + 1) & (localBlockIndex->capacity - 1);
 			idxEntry = localBlockIndex->index[newTail];
 			if (idxEntry->key.load(std::memory_order_relaxed) == INVALID_BLOCK_BASE ||
