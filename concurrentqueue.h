@@ -2560,7 +2560,7 @@ private:
 					currentTailIndex += static_cast<index_t>(BLOCK_SIZE);
 					
 					// Find out where we'll be inserting this block in the block index
-					BlockIndexEntry* idxEntry;
+					BlockIndexEntry* idxEntry = nullptr;  // initialization here unnecessary but compiler can't always tell
 					Block* newBlock;
 					bool indexInserted = false;
 					auto head = this->headIndex.load(std::memory_order_relaxed);
