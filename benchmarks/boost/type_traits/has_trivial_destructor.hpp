@@ -21,7 +21,7 @@
 #include <boost/type_traits/is_same.hpp>
 #endif
 
-#if defined(__GNUC__) || defined(__clang) || defined(__SUNPRO_CC)
+#if defined(__GNUC__) || defined(__clang__) || defined(__SUNPRO_CC)
 #include <boost/type_traits/is_destructible.hpp>
 #endif
 

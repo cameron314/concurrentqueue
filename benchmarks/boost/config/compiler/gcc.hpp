@@ -133,14 +133,23 @@
 //
 // Recent GCC versions have __int128 when in 64-bit mode.
 //
-// We disable this if the compiler is really nvcc as it
-// doesn't actually support __int128 as of CUDA_VERSION=5000
+// We disable this if the compiler is really nvcc with C++03 as it
+// doesn't actually support __int128 as of CUDA_VERSION=7500
 // even though it defines __SIZEOF_INT128__.
 // See https://svn.boost.org/trac/boost/ticket/8048
+//     https://svn.boost.org/trac/boost/ticket/11852
 // Only re-enable this for nvcc if you're absolutely sure
 // of the circumstances under which it's supported:
 //
-#if defined(__SIZEOF_INT128__) && !defined(__CUDACC__)
+#if defined(__CUDACC__)
+#  if defined(BOOST_GCC_CXX11)
+#    define BOOST_NVCC_CXX11
+#  else
+#    define BOOST_NVCC_CXX03
+#  endif
+#endif
+
+#if defined(__SIZEOF_INT128__) && !defined(BOOST_NVCC_CXX03)
 #  define BOOST_HAS_INT128
 #endif
 //
@@ -148,12 +157,16 @@
 // include a std lib header to detect this - not ideal, but we'll
 // be including <cstddef> later anyway when we select the std lib.
 //
+// Nevertheless, as of CUDA 7.5, using __float128 with the host
+// compiler in pre-C++11 mode is still not supported.
+// See https://svn.boost.org/trac/boost/ticket/11852
+//
 #ifdef __cplusplus
 #include <cstddef>
 #else
 #include <stddef.h>
 #endif
-#if defined(_GLIBCXX_USE_FLOAT128) && !defined(__STRICT_ANSI__)
+#if defined(_GLIBCXX_USE_FLOAT128) && !defined(__STRICT_ANSI__) && !defined(BOOST_NVCC_CXX03)
 # define BOOST_HAS_FLOAT128
 #endif
 
@@ -239,6 +252,8 @@
 //
 #if (BOOST_GCC_VERSION < 40800) || !defined(BOOST_GCC_CXX11)
 #  define BOOST_NO_CXX11_ALIGNAS
+#  define BOOST_NO_CXX11_THREAD_LOCAL
+#  define BOOST_NO_CXX11_SFINAE_EXPR
 #endif
 
 // C++0x features in 4.8.1 and later

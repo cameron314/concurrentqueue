@@ -9,6 +9,7 @@
 #ifndef BOOST_TT_IS_ASSIGNABLE_HPP_INCLUDED
 #define BOOST_TT_IS_ASSIGNABLE_HPP_INCLUDED
 
+#include <cstddef> // size_t
 #include <boost/type_traits/integral_constant.hpp>
 #include <boost/detail/workaround.hpp>
 

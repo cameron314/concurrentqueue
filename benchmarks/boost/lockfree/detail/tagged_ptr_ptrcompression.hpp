@@ -1,6 +1,6 @@
 //  tagged pointer, for aba prevention
 //
-//  Copyright (C) 2008, 2009 Tim Blechmann, based on code by Cory Nelson
+//  Copyright (C) 2008, 2009, 2016 Tim Blechmann, based on code by Cory Nelson
 //
 //  Distributed under the Boost Software License, Version 1.0. (See
 //  accompanying file LICENSE_1_0.txt or copy at
@@ -13,13 +13,13 @@
 #include <limits>
 
 #include <boost/cstdint.hpp>
-
+#include <boost/predef.h>
 
 namespace boost {
 namespace lockfree {
 namespace detail {
 
-#if defined (__x86_64__) || defined (_M_X64)
+#ifdef BOOST_ARCH_X86_64
 
 template <class T>
 class tagged_ptr

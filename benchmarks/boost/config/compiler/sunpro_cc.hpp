@@ -132,6 +132,7 @@
 #define BOOST_NO_CXX11_DECLTYPE_N3276
 #define BOOST_NO_CXX11_USER_DEFINED_LITERALS
 #define BOOST_NO_CXX11_REF_QUALIFIERS
+#define BOOST_NO_CXX11_THREAD_LOCAL
 #endif
 
 #define BOOST_NO_COMPLETE_VALUE_INITIALIZATION
@@ -140,6 +141,7 @@
 //
 #  define BOOST_HAS_LONG_LONG
 
+#define BOOST_NO_CXX11_SFINAE_EXPR
 
 // C++ 14:
 #if !defined(__cpp_aggregate_nsdmi) || (__cpp_aggregate_nsdmi < 201304)
@@ -151,7 +153,7 @@
 #if !defined(__cpp_constexpr) || (__cpp_constexpr < 201304)
 #  define BOOST_NO_CXX14_CONSTEXPR
 #endif
-#if !defined(__cpp_decltype_auto) || (__cpp_decltype_auto < 201304)
+#if !defined(__cpp_decltype_auto) || (__cpp_decltype_auto < 201304) || (__cplusplus < 201402L)
 #  define BOOST_NO_CXX14_DECLTYPE_AUTO
 #endif
 #if (__cplusplus < 201304) // There's no SD6 check for this....
@@ -169,6 +171,13 @@
 #if !defined(__cpp_variable_templates) || (__cpp_variable_templates < 201304)
 #  define BOOST_NO_CXX14_VARIABLE_TEMPLATES
 #endif
+
+// Turn on threading support for Solaris 12.
+// Ticket #11972
+#if (__SUNPRO_CC >= 0x5140) && defined(__SunOS_5_12) && !defined(BOOST_HAS_THREADS)
+# define BOOST_HAS_THREADS
+#endif
+
 //
 // Version
 //
