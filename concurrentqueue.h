@@ -331,16 +331,16 @@ struct ConcurrentQueueDefaultTraits
 #endif
 	static inline void* aligned_malloc(size_t size, size_t alignment){
 		void* res = nullptr;
-        void* ptr = malloc(size + alignment);
-        if(ptr != nullptr) {
-            res = reinterpret_cast<void*>((reinterpret_cast<size_t>(ptr) & ~(size_t(alignment - 1))) + alignment);
-            *(reinterpret_cast<void**>(res) - 1) = ptr;
-        }
-        return res;
+		void* ptr = malloc(size + alignment);
+		if(ptr != nullptr) {
+			res = reinterpret_cast<void*>((reinterpret_cast<size_t>(ptr) & ~(size_t(alignment - 1))) + alignment);
+			*(reinterpret_cast<void**>(res) - 1) = ptr;
+		}
+		return res;
 	}
 	static inline void aligned_free(void* ptr){
 		if(ptr != nullptr)
-            free(*(reinterpret_cast<void**>(ptr) - 1));
+			free(*(reinterpret_cast<void**>(ptr) - 1));
 	}
 };
 
