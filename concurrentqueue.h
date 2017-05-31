@@ -3492,12 +3492,6 @@ private:
 	// Utility functions
 	//////////////////////////////////
 
-	template<typename T>
-	struct SuperAlignPad {
-		T item;
-		void* start;
-	};
-
 	// Fundamental alignment
 
 	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
