@@ -3550,7 +3550,7 @@ private:
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
-		auto p = static_cast<U*>((Traits::aligned_malloc)(sizeof(U) * count, aligneof(U)));
+		auto p = static_cast<U*>((Traits::aligned_malloc)(sizeof(U) * count, alignof(U)));
 		if (p == nullptr) {
 			return nullptr;
 		}
