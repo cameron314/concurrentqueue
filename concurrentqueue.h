@@ -1461,7 +1461,7 @@ private:
 	
 	enum InnerQueueContext { implicit_context = 0, explicit_context = 1 };
 	
-	struct Block
+	struct alignas(alignof(T)) Block
 	{
 		Block()
 			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
@@ -1577,7 +1577,7 @@ private:
 		// generates code that uses this assumption for AVX instructions in some cases. Ideally, we
 		// should also align Block to the alignment of T in case it's higher than malloc's 16-byte
 		// alignment, but this is hard to do in a cross-platform way. Assert for this case:
-		static_assert(std::alignment_of<T>::value <= std::alignment_of<details::max_align_t>::value, "The queue does not support super-aligned types at this time");
+		//static_assert(std::alignment_of<T>::value <= std::alignment_of<details::max_align_t>::value, "The queue does not support super-aligned types at this time");
 		// Additionally, we need the alignment of Block itself to be a multiple of max_align_t since
 		// otherwise the appropriate padding will not be added at the end of Block in order to make
 		// arrays of Blocks all be properly aligned (not just the first one). We use a union to force
@@ -3478,8 +3478,16 @@ private:
 	//////////////////////////////////
 	// Utility functions
 	//////////////////////////////////
-	
-	template<typename U>
+
+	template<typename T>
+	struct SuperAlignPad {
+		T item;
+		void* start;
+	};
+
+	// Fundamental alignment
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
@@ -3487,14 +3495,14 @@ private:
 		if (p == nullptr) {
 			return nullptr;
 		}
-		
+
 		for (size_t i = 0; i != count; ++i) {
 			new (p + i) U();
 		}
 		return p;
 	}
-	
-	template<typename U>
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
 	static inline void destroy_array(U* p, size_t count)
 	{
 		if (p != nullptr) {
@@ -3505,28 +3513,97 @@ private:
 			(Traits::free)(p);
 		}
 	}
-	
-	template<typename U>
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
 	static inline U* create()
 	{
 		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
-	
-	template<typename U, typename A1>
+
+	template<typename U, typename A1, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
 	static inline U* create(A1&& a1)
 	{
 		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
-	
-	template<typename U>
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
 	static inline void destroy(U* p)
 	{
 		if (p != nullptr) {
 			p->~U();
 		}
 		(Traits::free)(p);
+	}
+
+	// Extended alignment
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	static inline U* create_array(size_t count)
+	{
+		assert(count > 0);
+		std::size_t sPadSize = sizeof(U)*count + sizeof(void*);
+		std::size_t asSize = sPadSize + alignof(U);
+		auto p = (Traits::malloc)(asSize);
+		auto ap = static_cast<U*>(std::align(alignof(U), sPadSize, p, asSize));
+		if (p == nullptr || ap == nullptr)
+			return nullptr;
+		*reinterpret_cast<void**>(ap + count) = p;
+
+		for (size_t i = 0; i != count; ++i) {
+			new (ap + i) U();
+		}
+		return ap;
+	}
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	static inline void destroy_array(U* p, size_t count)
+	{
+		if (p != nullptr) {
+			assert(count > 0);
+			for (size_t i = count; i != 0; ) {
+				(p + --i)->~U();
+			}
+
+			(Traits::free)(*reinterpret_cast<void**>(p + count));
+		}
+	}
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	static inline U* create()
+	{
+		typedef std::aligned_storage_t<sizeof(SuperAlignPad<U>), alignof(U)> alignedStorage;
+		std::size_t asSize = sizeof(alignedStorage);
+		auto p = (Traits::malloc)(sizeof(alignedStorage));
+		auto ap = std::align(alignof(U), sizeof(SuperAlignPad<U>), p, asSize);
+		if (p == nullptr || ap == nullptr)
+			return nullptr;
+		reinterpret_cast<SuperAlignPad<U>*>(ap)->start = p;
+
+		return new (ap) U;
+	}
+
+	template<typename U, typename A1, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	static inline U* create(A1&& a1)
+	{
+		typedef std::aligned_storage_t<sizeof(SuperAlignPad<U>), alignof(U)> alignedStorage;
+		auto p = (Traits::malloc)(sizeof(alignedStorage));
+		auto ap = std::align(alignof(U), sizeof(SuperAlignPad<U>), p, sizeof(alignedStorage));
+		if (p == nullptr || ap == nullptr)
+			return nullptr;
+		reinterpret_cast<SuperAlignPad<U>*>(ap)->start = p;
+
+		return new (ap) U(std::forward<A1>(a1));
+	}
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	static inline void destroy(U* p)
+	{
+		if (p != nullptr) {
+			p->~U();
+		}
+		(Traits::free)(reinterpret_cast<SuperAlignPad<U>*>(p)->start);
 	}
 
 private:
