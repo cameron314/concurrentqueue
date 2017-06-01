@@ -3505,7 +3505,7 @@ private:
 
 	// Fundamental alignment
 
-	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
@@ -3520,7 +3520,7 @@ private:
 		return p;
 	}
 
-	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline void destroy_array(U* p, size_t count)
 	{
 		if (p != nullptr) {
@@ -3532,21 +3532,21 @@ private:
 		}
 	}
 
-	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create()
 	{
 		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
 
-	template<typename U, typename A1, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename A1, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create(A1&& a1)
 	{
 		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
 
-	template<typename U, typename std::enable_if<!(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline void destroy(U* p)
 	{
 		if (p != nullptr) {
@@ -3557,7 +3557,7 @@ private:
 
 	// Extended alignment
 
-	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
@@ -3572,7 +3572,7 @@ private:
 		return p;
 	}
 
-	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline void destroy_array(U* p, size_t count)
 	{
 		if (p != nullptr) {
@@ -3584,21 +3584,21 @@ private:
 		}
 	}
 
-	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create()
 	{
 		auto p = (Traits::aligned_malloc)(sizeof(U), alignof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
 
-	template<typename U, typename A1, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename A1, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create(A1&& a1)
 	{
 		auto p = (Traits::aligned_malloc)(sizeof(U), alignof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
 
-	template<typename U, typename std::enable_if<(alignof(U)>alignof(std::max_align_t)), int>::type = 0>
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline void destroy(U* p)
 	{
 		if (p != nullptr) {
