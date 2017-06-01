@@ -214,6 +214,17 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
+// VS2013 doesn't support alignas or alignof
+#if defined(_MSC_VER) && _MSC_VER <= 1800
+#define MOODYCAMEL_ALIGNAS(alignment) __declspec(align(alignment))
+#define MOODYCAMEL_ALIGNOF(obj) __alignof(obj)
+#else
+#define MOODYCAMEL_ALIGNAS(alignment) alignas(alignment)
+#define MOODYCAMEL_ALIGNOF(obj) alignof(obj)
+#endif
+
+
+
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
 #if defined(__GNUC__)
@@ -1474,7 +1485,7 @@ private:
 	
 	enum InnerQueueContext { implicit_context = 0, explicit_context = 1 };
 	
-	struct alignas(alignof(T)) Block
+	struct MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) Block
 	{
 		Block()
 			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
@@ -1590,7 +1601,7 @@ private:
 		// generates code that uses this assumption for AVX instructions in some cases. Ideally, we
 		// should also align Block to the alignment of T in case it's higher than malloc's 16-byte
 		// alignment, but this is hard to do in a cross-platform way. Assert for this case:
-		//static_assert(std::alignment_of<T>::value <= std::alignment_of<details::max_align_t>::value, "The queue does not support super-aligned types at this time");
+		static_assert(std::alignment_of<T>::value <= sizeof(T), "The queue does not support types with an alignment greater than their size at this time.");
 		// Additionally, we need the alignment of Block itself to be a multiple of max_align_t since
 		// otherwise the appropriate padding will not be added at the end of Block in order to make
 		// arrays of Blocks all be properly aligned (not just the first one). We use a union to force
