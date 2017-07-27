@@ -1406,7 +1406,7 @@ private:
 					assert((head->freeListRefs.load(std::memory_order_relaxed) & SHOULD_BE_ON_FREELIST) == 0);
 					
 					// Decrease refcount twice, once for our ref, and once for the list's ref
-					head->freeListRefs.fetch_add(-2, std::memory_order_release);
+					head->freeListRefs.fetch_sub(2, std::memory_order_release);
 					return head;
 				}
 				
