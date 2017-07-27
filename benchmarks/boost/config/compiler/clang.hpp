@@ -39,14 +39,25 @@
 #  define BOOST_NO_TYPEID
 #endif
 
-#if defined(__int64) && !defined(__GNUC__)
+#if !__has_feature(cxx_thread_local)
+#  define BOOST_NO_CXX11_THREAD_LOCAL
+#endif
+
+#ifdef __is_identifier
+#if !__is_identifier(__int64) && !defined(__GNUC__)
 #  define BOOST_HAS_MS_INT64
 #endif
+#endif
+
+#if __has_include(<stdint.h>)
+#  define BOOST_HAS_STDINT_H
+#endif
+
 
 #define BOOST_HAS_NRVO
 
 // Branch prediction hints
-#if defined(__has_builtin)
+#if !defined (__c2__) && defined(__has_builtin)
 #if __has_builtin(__builtin_expect)
 #define BOOST_LIKELY(x) __builtin_expect(x, 1)
 #define BOOST_UNLIKELY(x) __builtin_expect(x, 0)
@@ -57,16 +68,25 @@
 #define BOOST_HAS_LONG_LONG
 
 //
-// We disable this if the compiler is really nvcc as it
-// doesn't actually support __int128 as of CUDA_VERSION=5000
+// We disable this if the compiler is really nvcc with C++03 as it
+// doesn't actually support __int128 as of CUDA_VERSION=7500
 // even though it defines __SIZEOF_INT128__.
 // See https://svn.boost.org/trac/boost/ticket/10418
+//     https://svn.boost.org/trac/boost/ticket/11852
 // Only re-enable this for nvcc if you're absolutely sure
 // of the circumstances under which it's supported.
 // Similarly __SIZEOF_INT128__ is defined when targetting msvc
 // compatibility even though the required support functions are absent.
 //
-#if defined(__SIZEOF_INT128__) && !defined(__CUDACC__) && !defined(_MSC_VER)
+#if defined(__CUDACC__)
+#  if defined(BOOST_GCC_CXX11)
+#    define BOOST_NVCC_CXX11
+#  else
+#    define BOOST_NVCC_CXX03
+#  endif
+#endif
+
+#if defined(__SIZEOF_INT128__) && !defined(BOOST_NVCC_CXX03) && !defined(_MSC_VER)
 #  define BOOST_HAS_INT128
 #endif
 
@@ -98,9 +118,14 @@
 //
 // Currently clang on Windows using VC++ RTL does not support C++11's char16_t or char32_t
 //
-#if defined(_MSC_VER) || !(defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L)
+#if (defined(_MSC_VER) && (_MSC_VER < 1900)) || !(defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L)
 #  define BOOST_NO_CXX11_CHAR16_T
 #  define BOOST_NO_CXX11_CHAR32_T
+#endif
+
+#if defined(_MSC_VER) && (_MSC_VER >= 1800) && !defined(__GNUC__)
+#define BOOST_HAS_EXPM1
+#define BOOST_HAS_LOG1P
 #endif
 
 #if !__has_feature(cxx_constexpr)
@@ -255,6 +280,10 @@
 
 #if !__has_feature(__cxx_variable_templates__)
 #  define BOOST_NO_CXX14_VARIABLE_TEMPLATES
+#endif
+
+#if __cplusplus < 201103L
+#define BOOST_NO_CXX11_SFINAE_EXPR
 #endif
 
 #if __cplusplus < 201400

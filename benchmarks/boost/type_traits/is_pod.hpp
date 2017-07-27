@@ -9,6 +9,7 @@
 #ifndef BOOST_TT_IS_POD_HPP_INCLUDED
 #define BOOST_TT_IS_POD_HPP_INCLUDED
 
+#include <cstddef> // size_t
 #include <boost/type_traits/detail/config.hpp>
 #include <boost/type_traits/is_void.hpp>
 #include <boost/type_traits/is_scalar.hpp>
