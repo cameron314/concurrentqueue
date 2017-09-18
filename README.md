@@ -21,8 +21,9 @@ Note: If all you need is a single-producer, single-consumer queue, I have [one o
 ## Reasons to use
 
 There are not that many full-fledged lock-free queues for C++. Boost has one, but it's limited to objects with trivial
-assignment operators and trivial destructors, for example. Intel's TBB queue isn't lock-free, and requires trivial constructors too.
-There's many academic papers that implement lock-free queues in C++, but usable source code is
+assignment operators and trivial destructors, for example.
+Intel's TBB queue isn't lock-free, and requires trivial constructors too.
+There're many academic papers that implement lock-free queues in C++, but usable source code is
 hard to find, and tests even more so.
 
 This queue not only has less limitations than others (for the most part), but [it's also faster][benchmarks].
