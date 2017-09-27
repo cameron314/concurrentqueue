@@ -216,7 +216,7 @@ namespace details
 				ts.tv_nsec += (usecs % usecs_in_1_sec) * 1000;
 				// sem_timedwait bombs if you have more than 1e9 in tv_nsec
 				// so we have to clean things up before passing it in
-				if (ts.tv_nsec > nsecs_in_1_sec) {
+				if (ts.tv_nsec >= nsecs_in_1_sec) {
 					ts.tv_nsec -= nsecs_in_1_sec;
 					++ts.tv_sec;
 				}
