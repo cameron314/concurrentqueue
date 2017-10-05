@@ -416,10 +416,10 @@ namespace details
 #endif
 	}
 	
-	template<typename U>
+	template<typename T2>
 	static inline char* align_for(char* ptr)
 	{
-		const std::size_t alignment = std::alignment_of<U>::value;
+		const std::size_t alignment = std::alignment_of<T2>::value;
 		return ptr + (alignment - (reinterpret_cast<std::uintptr_t>(ptr) % alignment)) % alignment;
 	}
 
@@ -467,11 +467,11 @@ namespace details
 	template<>
 	struct nomove_if<false>
 	{
-		template<typename U>
-		static inline auto eval(U&& x)
-			-> decltype(std::forward<U>(x))
+		template<typename T2>
+		static inline auto eval(T2&& x)
+			-> decltype(std::forward<T2>(x))
 		{
-			return std::forward<U>(x);
+			return std::forward<T2>(x);
 		}
 	};
 	
@@ -560,7 +560,7 @@ namespace details
 	template<> struct static_is_lock_free_num<long long> { enum { value = ATOMIC_LLONG_LOCK_FREE }; };
 	template<typename T> struct static_is_lock_free : static_is_lock_free_num<typename std::make_signed<T>::type> {  };
 	template<> struct static_is_lock_free<bool> { enum { value = ATOMIC_BOOL_LOCK_FREE }; };
-	template<typename U> struct static_is_lock_free<U*> { enum { value = ATOMIC_POINTER_LOCK_FREE }; };
+	template<typename T2> struct static_is_lock_free<T2*> { enum { value = ATOMIC_POINTER_LOCK_FREE }; };
 }
 
 
@@ -1037,8 +1037,8 @@ public:
 	// Returns false if all producer streams appeared empty at the time they
 	// were checked (so, the queue is likely but not guaranteed to be empty).
 	// Never allocates. Thread-safe.
-	template<typename U>
-	bool try_dequeue(U& item)
+	template<typename T2>
+	bool try_dequeue(T2& item)
 	{
 		// Instead of simply trying each producer in turn (which could cause needless contention on the first
 		// producer), we score them heuristically.
@@ -1080,8 +1080,8 @@ public:
 	// under contention, but will give more predictable results in single-threaded
 	// consumer scenarios. This is mostly only useful for internal unit tests.
 	// Never allocates. Thread-safe.
-	template<typename U>
-	bool try_dequeue_non_interleaved(U& item)
+	template<typename T2>
+	bool try_dequeue_non_interleaved(T2& item)
 	{
 		for (auto ptr = producerListTail.load(std::memory_order_acquire); ptr != nullptr; ptr = ptr->next_prod()) {
 			if (ptr->dequeue(item)) {
@@ -1095,8 +1095,8 @@ public:
 	// Returns false if all producer streams appeared empty at the time they
 	// were checked (so, the queue is likely but not guaranteed to be empty).
 	// Never allocates. Thread-safe.
-	template<typename U>
-	bool try_dequeue(consumer_token_t& token, U& item)
+	template<typename T2>
+	bool try_dequeue(consumer_token_t& token, T2& item)
 	{
 		// The idea is roughly as follows:
 		// Every 256 items from one producer, make everyone rotate (increase the global offset) -> this means the highest efficiency consumer dictates the rotation speed of everyone else, more or less
@@ -1212,8 +1212,8 @@ public:
 	// Returns false if the producer's queue appeared empty at the time it
 	// was checked (so, the queue is likely but not guaranteed to be empty).
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline bool try_dequeue_from_producer(producer_token_t const& producer, U& item)
+	template<typename T2>
+	inline bool try_dequeue_from_producer(producer_token_t const& producer, T2& item)
 	{
 		return static_cast<ExplicitProducer*>(producer.producer)->dequeue(item);
 	}
@@ -1276,17 +1276,17 @@ private:
 	// Queue methods
 	///////////////////////////////
 	
-	template<AllocationMode canAlloc, typename U>
-	inline bool inner_enqueue(producer_token_t const& token, U&& element)
+	template<AllocationMode canAlloc, typename T2>
+	inline bool inner_enqueue(producer_token_t const& token, T2&& element)
 	{
-		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue<canAlloc>(std::forward<U>(element));
+		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue<canAlloc>(std::forward<T2>(element));
 	}
 	
-	template<AllocationMode canAlloc, typename U>
-	inline bool inner_enqueue(U&& element)
+	template<AllocationMode canAlloc, typename T2>
+	inline bool inner_enqueue(T2&& element)
 	{
 		auto producer = get_or_add_implicit_producer();
-		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue<canAlloc>(std::forward<U>(element));
+		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue<canAlloc>(std::forward<T2>(element));
 	}
 	
 	template<AllocationMode canAlloc, typename It>
@@ -1636,8 +1636,8 @@ private:
 		
 		virtual ~ProducerBase() { };
 		
-		template<typename U>
-		inline bool dequeue(U& element)
+		template<typename T2>
+		inline bool dequeue(T2& element)
 		{
 			if (isExplicit) {
 				return static_cast<ExplicitProducer*>(this)->dequeue(element);
@@ -1776,8 +1776,8 @@ private:
 			}
 		}
 		
-		template<AllocationMode allocMode, typename U>
-		inline bool enqueue(U&& element)
+		template<AllocationMode allocMode, typename T2>
+		inline bool enqueue(T2&& element)
 		{
 			index_t currentTailIndex = this->tailIndex.load(std::memory_order_relaxed);
 			index_t newTailIndex = 1 + currentTailIndex;
@@ -1840,11 +1840,11 @@ private:
 					++pr_blockIndexSlotsUsed;
 				}
 				
-				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
+				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, T2, new (nullptr) T(std::forward<T2>(element)))) {
 					// The constructor may throw. We want the element not to appear in the queue in
 					// that case (without corrupting the queue):
 					MOODYCAMEL_TRY {
-						new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element));
+						new ((*this->tailBlock)[currentTailIndex]) T(std::forward<T2>(element));
 					}
 					MOODYCAMEL_CATCH (...) {
 						// Revert change to the current block, but leave the new block available
@@ -1866,21 +1866,21 @@ private:
 				blockIndex.load(std::memory_order_relaxed)->front.store(pr_blockIndexFront, std::memory_order_release);
 				pr_blockIndexFront = (pr_blockIndexFront + 1) & (pr_blockIndexSize - 1);
 				
-				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
+				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, T2, new (nullptr) T(std::forward<T2>(element)))) {
 					this->tailIndex.store(newTailIndex, std::memory_order_release);
 					return true;
 				}
 			}
 			
 			// Enqueue
-			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element));
+			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<T2>(element));
 			
 			this->tailIndex.store(newTailIndex, std::memory_order_release);
 			return true;
 		}
 		
-		template<typename U>
-		bool dequeue(U& element)
+		template<typename T2>
+		bool dequeue(T2& element)
 		{
 			auto tail = this->tailIndex.load(std::memory_order_relaxed);
 			auto overcommit = this->dequeueOvercommit.load(std::memory_order_relaxed);
@@ -2403,8 +2403,8 @@ private:
 			}
 		}
 		
-		template<AllocationMode allocMode, typename U>
-		inline bool enqueue(U&& element)
+		template<AllocationMode allocMode, typename T2>
+		inline bool enqueue(T2&& element)
 		{
 			index_t currentTailIndex = this->tailIndex.load(std::memory_order_relaxed);
 			index_t newTailIndex = 1 + currentTailIndex;
@@ -2436,10 +2436,10 @@ private:
 #endif
 				newBlock->ConcurrentQueue::Block::template reset_empty<implicit_context>();
 				
-				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
+				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, T2, new (nullptr) T(std::forward<T2>(element)))) {
 					// May throw, try to insert now before we publish the fact that we have this new block
 					MOODYCAMEL_TRY {
-						new ((*newBlock)[currentTailIndex]) T(std::forward<U>(element));
+						new ((*newBlock)[currentTailIndex]) T(std::forward<T2>(element));
 					}
 					MOODYCAMEL_CATCH (...) {
 						rewind_block_index_tail();
@@ -2454,21 +2454,21 @@ private:
 				
 				this->tailBlock = newBlock;
 				
-				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (nullptr) T(std::forward<U>(element)))) {
+				if (!MOODYCAMEL_NOEXCEPT_CTOR(T, T2, new (nullptr) T(std::forward<T2>(element)))) {
 					this->tailIndex.store(newTailIndex, std::memory_order_release);
 					return true;
 				}
 			}
 			
 			// Enqueue
-			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element));
+			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<T2>(element));
 			
 			this->tailIndex.store(newTailIndex, std::memory_order_release);
 			return true;
 		}
 		
-		template<typename U>
-		bool dequeue(U& element)
+		template<typename T2>
+		bool dequeue(T2& element)
 		{
 			// See ExplicitProducer::dequeue for rationale and explanation
 			index_t tail = this->tailIndex.load(std::memory_order_relaxed);
@@ -3487,52 +3487,52 @@ private:
 	// Utility functions
 	//////////////////////////////////
 	
-	template<typename U>
-	static inline U* create_array(size_t count)
+	template<typename T2>
+	static inline T2* create_array(size_t count)
 	{
 		assert(count > 0);
-		auto p = static_cast<U*>((Traits::malloc)(sizeof(U) * count));
+		auto p = static_cast<T2*>((Traits::malloc)(sizeof(T2) * count));
 		if (p == nullptr) {
 			return nullptr;
 		}
 		
 		for (size_t i = 0; i != count; ++i) {
-			new (p + i) U();
+			new (p + i) T2();
 		}
 		return p;
 	}
 	
-	template<typename U>
-	static inline void destroy_array(U* p, size_t count)
+	template<typename T2>
+	static inline void destroy_array(T2* p, size_t count)
 	{
 		if (p != nullptr) {
 			assert(count > 0);
 			for (size_t i = count; i != 0; ) {
-				(p + --i)->~U();
+				(p + --i)->~T2();
 			}
 			(Traits::free)(p);
 		}
 	}
 	
-	template<typename U>
-	static inline U* create()
+	template<typename T2>
+	static inline T2* create()
 	{
-		auto p = (Traits::malloc)(sizeof(U));
-		return p != nullptr ? new (p) U : nullptr;
+		auto p = (Traits::malloc)(sizeof(T2));
+		return p != nullptr ? new (p) T2 : nullptr;
 	}
 	
-	template<typename U, typename A1>
-	static inline U* create(A1&& a1)
+	template<typename T2, typename A1>
+	static inline T2* create(A1&& a1)
 	{
-		auto p = (Traits::malloc)(sizeof(U));
-		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
+		auto p = (Traits::malloc)(sizeof(T2));
+		return p != nullptr ? new (p) T2(std::forward<A1>(a1)) : nullptr;
 	}
 	
-	template<typename U>
-	static inline void destroy(U* p)
+	template<typename T2>
+	static inline void destroy(T2* p)
 	{
 		if (p != nullptr) {
-			p->~U();
+			p->~T2();
 		}
 		(Traits::free)(p);
 	}

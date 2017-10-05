@@ -686,8 +686,8 @@ public:
 	// Returns false if all producer streams appeared empty at the time they
 	// were checked (so, the queue is likely but not guaranteed to be empty).
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline bool try_dequeue(U& item)
+	template<typename T2>
+	inline bool try_dequeue(T2& item)
 	{
 		if (sema->tryWait()) {
 			while (!inner.try_dequeue(item)) {
@@ -702,8 +702,8 @@ public:
 	// Returns false if all producer streams appeared empty at the time they
 	// were checked (so, the queue is likely but not guaranteed to be empty).
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline bool try_dequeue(consumer_token_t& token, U& item)
+	template<typename T2>
+	inline bool try_dequeue(consumer_token_t& token, T2& item)
 	{
 		if (sema->tryWait()) {
 			while (!inner.try_dequeue(token, item)) {
@@ -751,8 +751,8 @@ public:
 	// Blocks the current thread until there's something to dequeue, then
 	// dequeues it.
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline void wait_dequeue(U& item)
+	template<typename T2>
+	inline void wait_dequeue(T2& item)
 	{
 		sema->wait();
 		while (!inner.try_dequeue(item)) {
@@ -767,8 +767,8 @@ public:
 	// Using a negative timeout indicates an indefinite timeout,
 	// and is thus functionally equivalent to calling wait_dequeue.
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline bool wait_dequeue_timed(U& item, std::int64_t timeout_usecs)
+	template<typename T2>
+	inline bool wait_dequeue_timed(T2& item, std::int64_t timeout_usecs)
 	{
 		if (!sema->wait(timeout_usecs)) {
 			return false;
@@ -783,8 +783,8 @@ public:
 	// or the timeout expires. Returns false without setting `item` if the
     // timeout expires, otherwise assigns to `item` and returns true.
 	// Never allocates. Thread-safe.
-	template<typename U, typename Rep, typename Period>
-	inline bool wait_dequeue_timed(U& item, std::chrono::duration<Rep, Period> const& timeout)
+	template<typename T2, typename Rep, typename Period>
+	inline bool wait_dequeue_timed(T2& item, std::chrono::duration<Rep, Period> const& timeout)
     {
         return wait_dequeue_timed(item, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
     }
@@ -792,8 +792,8 @@ public:
 	// Blocks the current thread until there's something to dequeue, then
 	// dequeues it using an explicit consumer token.
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline void wait_dequeue(consumer_token_t& token, U& item)
+	template<typename T2>
+	inline void wait_dequeue(consumer_token_t& token, T2& item)
 	{
 		sema->wait();
 		while (!inner.try_dequeue(token, item)) {
@@ -808,8 +808,8 @@ public:
 	// Using a negative timeout indicates an indefinite timeout,
 	// and is thus functionally equivalent to calling wait_dequeue.
 	// Never allocates. Thread-safe.
-	template<typename U>
-	inline bool wait_dequeue_timed(consumer_token_t& token, U& item, std::int64_t timeout_usecs)
+	template<typename T2>
+	inline bool wait_dequeue_timed(consumer_token_t& token, T2& item, std::int64_t timeout_usecs)
 	{
 		if (!sema->wait(timeout_usecs)) {
 			return false;
@@ -824,8 +824,8 @@ public:
 	// or the timeout expires. Returns false without setting `item` if the
     // timeout expires, otherwise assigns to `item` and returns true.
 	// Never allocates. Thread-safe.
-	template<typename U, typename Rep, typename Period>
-	inline bool wait_dequeue_timed(consumer_token_t& token, U& item, std::chrono::duration<Rep, Period> const& timeout)
+	template<typename T2, typename Rep, typename Period>
+	inline bool wait_dequeue_timed(consumer_token_t& token, T2& item, std::chrono::duration<Rep, Period> const& timeout)
     {
         return wait_dequeue_timed(token, item, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
     }
@@ -943,25 +943,25 @@ public:
 	
 
 private:
-	template<typename U>
-	static inline U* create()
+	template<typename T2>
+	static inline T2* create()
 	{
-		auto p = (Traits::malloc)(sizeof(U));
-		return p != nullptr ? new (p) U : nullptr;
+		auto p = (Traits::malloc)(sizeof(T2));
+		return p != nullptr ? new (p) T2 : nullptr;
 	}
 	
-	template<typename U, typename A1>
-	static inline U* create(A1&& a1)
+	template<typename T2, typename A1>
+	static inline T2* create(A1&& a1)
 	{
-		auto p = (Traits::malloc)(sizeof(U));
-		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
+		auto p = (Traits::malloc)(sizeof(T2));
+		return p != nullptr ? new (p) T2(std::forward<A1>(a1)) : nullptr;
 	}
 	
-	template<typename U>
-	static inline void destroy(U* p)
+	template<typename T2>
+	static inline void destroy(T2* p)
 	{
 		if (p != nullptr) {
-			p->~U();
+			p->~T2();
 		}
 		(Traits::free)(p);
 	}
