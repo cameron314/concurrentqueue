@@ -1,2 +1,0 @@
-lock-free stack
-code contains several bugs: access to freed memory and ABA problem
