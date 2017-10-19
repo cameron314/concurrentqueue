@@ -379,7 +379,7 @@ the [unit tests][unittest-src] and [benchmarks][benchmark-src] are available for
 
 ## Buidling
 
-The code be built either using cmake or make files.
+The code can be built either using cmake or make files.
 
 ### cmake
 
