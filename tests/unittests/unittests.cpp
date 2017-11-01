@@ -10,6 +10,7 @@
 #include <string>
 #include <cstddef>
 #include <string>
+#include <future>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -59,6 +60,7 @@ namespace {
 	};
 	
 	std::atomic<std::size_t> tracking_allocator::usage(0);
+
 }
 
 struct corealgos_allocator
@@ -286,6 +288,10 @@ public:
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
 		REGISTER_TEST(timed_blocking_wrappers);
+
+		// Semaphore
+		REGISTER_TEST(acquire_and_signal);
+		REGISTER_TEST(try_acquire_and_signal);
 		
 		// Core algos
 		REGISTER_TEST(core_add_only_list);
@@ -4264,6 +4270,137 @@ public:
 		
 		return true;
 	}
+
+	bool acquire_and_signal()
+	{
+        typedef ::moodycamel::LightweightSemaphore semaphore;
+
+        // Test resource acquisition from one other thread.
+		{
+			semaphore s;
+			s.signal(); // Single resource available
+						
+			const auto fnTestSingleAcquire = 
+			    [](::moodycamel::LightweightSemaphore &s) -> bool
+				{
+					for (std::size_t k = 0; k < 100; ++k)
+					{
+						ASSERT_OR_FAIL(s.wait(100 * 1000)); // Wait 100 ms
+						s.signal();
+					}
+					
+					return true;
+				};
+
+			std::thread t1(fnTestSingleAcquire, std::ref(s));
+			std::thread t2(fnTestSingleAcquire, std::ref(s));
+
+			// Ideally std::thread would have 'try_join_for' like Boost :(
+			t1.join();
+			t2.join();
+			
+			ASSERT_OR_FAIL(1==s.availableApprox());
+		}
+
+        // Test resource acquisition from multiple threads.
+		{
+			const std::size_t ITERATIONS = 100;
+			const std::array<std::size_t, 2> arrayItemsToWait = {2,3};
+			
+			semaphore s;
+
+			s.signal((100 * arrayItemsToWait[0]) + (100 * arrayItemsToWait[1]));
+			
+			const auto fnTestMultiAcquire =
+				[ITERATIONS](const std::size_t  n, ::moodycamel::LightweightSemaphore &s) -> bool
+				{
+					for (std::size_t k = 0; k < ITERATIONS; ++k)
+					{
+						const ssize_t signedN = static_cast<ssize_t>(n);
+						ASSERT_OR_FAIL(signedN==s.waitMany(n, 100 * 1000)); // Wait 100 ms
+					}
+					
+					return true;
+				};
+				
+			std::packaged_task<bool(std::size_t, moodycamel::LightweightSemaphore&)> task1(fnTestMultiAcquire);
+			std::packaged_task<bool(std::size_t, moodycamel::LightweightSemaphore&)> task2(fnTestMultiAcquire);
+			
+			std::future<bool> f1 = task1.get_future();
+			std::future<bool> f2 = task2.get_future();
+
+			std::thread t1(std::move(task1), arrayItemsToWait[0], std::ref(s));
+			std::thread t2(std::move(task2), arrayItemsToWait[1], std::ref(s));
+
+			t1.join();
+			t2.join();
+			
+			ASSERT_OR_FAIL(f1.get());
+            ASSERT_OR_FAIL(f2.get());
+            
+			ASSERT_OR_FAIL(0==s.availableApprox());
+		}
+
+		semaphore s;
+
+		ASSERT_OR_FAIL(s.availableApprox()==0);
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox()==1);
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox()==2);
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox()==12);
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox()==22);
+
+		s.wait();
+		ASSERT_OR_FAIL(s.availableApprox()==21);
+		s.wait();
+		ASSERT_OR_FAIL(s.availableApprox()==20);
+		s.waitMany(10);
+		ASSERT_OR_FAIL(s.availableApprox()==10);
+		s.waitMany(10);
+		ASSERT_OR_FAIL(s.availableApprox()==0);
+
+		return true;
+	}
+
+    bool try_acquire_and_signal()
+    {
+        typedef ::moodycamel::LightweightSemaphore semaphore;
+
+        semaphore s;
+
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal();
+        ASSERT_OR_FAIL(s.availableApprox()==1);
+        ASSERT_OR_FAIL(1==s.tryWaitMany(2));
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal();
+        ASSERT_OR_FAIL(s.availableApprox()==1);
+        ASSERT_OR_FAIL(1==s.tryWaitMany(3));
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal(10);
+        ASSERT_OR_FAIL(s.availableApprox()==10);
+        ASSERT_OR_FAIL(10==s.tryWaitMany(100));
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal(10);
+        ASSERT_OR_FAIL(s.availableApprox()==10);
+        ASSERT_OR_FAIL(5==s.tryWaitMany(5));
+        ASSERT_OR_FAIL(s.availableApprox()==5);
+
+        ASSERT_OR_FAIL(s.tryWait());
+        ASSERT_OR_FAIL(s.availableApprox()==4);
+
+        ASSERT_OR_FAIL(s.tryWait());
+        ASSERT_OR_FAIL(s.availableApprox()==3);
+
+        return true;
+    }
 	
 	struct TestListItem : corealgos::ListItem
 	{
