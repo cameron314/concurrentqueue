@@ -7,7 +7,7 @@
 #pragma once
 
 #include "concurrentqueue.h"
-#include "semaphore.hpp"
+#include "lightweightsemaphore.h"
 
 #include <type_traits>
 #include <cerrno>
