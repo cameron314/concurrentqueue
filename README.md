@@ -377,29 +377,6 @@ the object contains no internal pointers. Example:
 There are some more detailed samples [here][samples.md]. The source of
 the [unit tests][unittest-src] and [benchmarks][benchmark-src] are available for reference as well.
 
-## Buidling
-
-The code be built either using cmake or make files.
-
-### cmake
-
-    cd build
-    mkdir build.release && cd build.release
-    cmake -DCMAKE_BUILD_TYPE=RELEASE ..
-    make
-    
-Cmake build also has an optional install target.
-
-    make install
-    
-
-### make
-
-    cd build
-    make
-    
-No install target has been specified
-
 ## Benchmarks
 
 See my blog post for some [benchmark results][benchmarks] (including versus `boost::lockfree::queue` and `tbb::concurrent_queue`),
