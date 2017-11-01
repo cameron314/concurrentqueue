@@ -59,6 +59,29 @@ namespace {
 	};
 	
 	std::atomic<std::size_t> tracking_allocator::usage(0);
+
+    static void threadTestOne(::moodycamel::LightweightSemaphore &s)
+    {
+        uint32_t i = 0;
+        while (i < 100)
+        {
+            s.wait();
+            i++;
+            s.signal();
+        }
+    }
+
+    static void threadTestN(const int n, ::moodycamel::LightweightSemaphore &s)
+    {
+        int i = 0;
+        while (i < 100)
+        {
+            s.waitMany(n);
+            i++;
+            s.signal(n);
+        }
+    }
+
 }
 
 struct corealgos_allocator
@@ -286,6 +309,10 @@ public:
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
 		REGISTER_TEST(timed_blocking_wrappers);
+
+		// Semaphore
+		REGISTER_TEST(acquire_and_signal);
+        REGISTER_TEST(try_acquire_and_signal);
 		
 		// Core algos
 		REGISTER_TEST(core_add_only_list);
@@ -4264,6 +4291,96 @@ public:
 		
 		return true;
 	}
+
+	bool acquire_and_signal()
+	{
+        typedef ::moodycamel::LightweightSemaphore semaphore;
+
+		{
+            semaphore s;
+			s.signal();
+
+			std::thread t1(threadTestOne, std::ref(s));
+			std::thread t2(threadTestOne, std::ref(s));
+
+            // Ideally std::thread would have 'try_join_for' like Boost :(
+            t1.join();
+            t2.join();
+		}
+
+		{
+            semaphore s;
+
+			// make 4 resources available
+			s.signal(4);
+
+			std::thread t1(threadTestN, 2, std::ref(s));
+			std::thread t2(threadTestN, 3, std::ref(s));
+
+            t1.join();
+            t2.join();
+		}
+
+        semaphore s;
+
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+		s.signal();
+        ASSERT_OR_FAIL(s.availableApprox()==1);
+		s.signal();
+        ASSERT_OR_FAIL(s.availableApprox()==2);
+		s.signal(10);
+        ASSERT_OR_FAIL(s.availableApprox()==12);
+		s.signal(10);
+        ASSERT_OR_FAIL(s.availableApprox()==22);
+
+		s.wait();
+        ASSERT_OR_FAIL(s.availableApprox()==21);
+		s.wait();
+        ASSERT_OR_FAIL(s.availableApprox()==20);
+		s.waitMany(10);
+        ASSERT_OR_FAIL(s.availableApprox()==10);
+		s.waitMany(10);
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        return true;
+	}
+
+    bool try_acquire_and_signal()
+    {
+        typedef ::moodycamel::LightweightSemaphore semaphore;
+
+        semaphore s;
+
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal();
+        ASSERT_OR_FAIL(s.availableApprox()==1);
+        ASSERT_OR_FAIL(1==s.tryWaitMany(2));
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal();
+        ASSERT_OR_FAIL(s.availableApprox()==1);
+        ASSERT_OR_FAIL(1==s.tryWaitMany(3));
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal(10);
+        ASSERT_OR_FAIL(s.availableApprox()==10);
+        ASSERT_OR_FAIL(10==s.tryWaitMany(100));
+        ASSERT_OR_FAIL(s.availableApprox()==0);
+
+        s.signal(10);
+        ASSERT_OR_FAIL(s.availableApprox()==10);
+        ASSERT_OR_FAIL(5==s.tryWaitMany(5));
+        ASSERT_OR_FAIL(s.availableApprox()==5);
+
+        ASSERT_OR_FAIL(s.tryWait());
+        ASSERT_OR_FAIL(s.availableApprox()==4);
+
+        ASSERT_OR_FAIL(s.tryWait());
+        ASSERT_OR_FAIL(s.availableApprox()==3);
+
+        return true;
+    }
 	
 	struct TestListItem : corealgos::ListItem
 	{
