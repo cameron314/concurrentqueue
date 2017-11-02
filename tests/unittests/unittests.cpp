@@ -4273,15 +4273,15 @@ public:
 
 	bool acquire_and_signal()
 	{
-        typedef ::moodycamel::LightweightSemaphore semaphore;
+		typedef ::moodycamel::LightweightSemaphore semaphore;
 
-        // Test resource acquisition from one other thread.
+		// Test resource acquisition from one other thread.
 		{
 			semaphore s;
 			s.signal(); // Single resource available
 						
 			const auto fnTestSingleAcquire = 
-			    [](::moodycamel::LightweightSemaphore &s) -> bool
+				[](::moodycamel::LightweightSemaphore &s) -> bool
 				{
 					for (std::size_t k = 0; k < 100; ++k)
 					{
@@ -4302,7 +4302,7 @@ public:
 			ASSERT_OR_FAIL(1==s.availableApprox());
 		}
 
-        // Test resource acquisition from multiple threads.
+		// Test resource acquisition from multiple threads.
 		{
 			const std::size_t ITERATIONS = 100;
 			const std::array<std::size_t, 2> arrayItemsToWait = {2,3};
@@ -4336,8 +4336,8 @@ public:
 			t2.join();
 			
 			ASSERT_OR_FAIL(f1.get());
-            ASSERT_OR_FAIL(f2.get());
-            
+			ASSERT_OR_FAIL(f2.get());
+			
 			ASSERT_OR_FAIL(0==s.availableApprox());
 		}
 
@@ -4365,42 +4365,42 @@ public:
 		return true;
 	}
 
-    bool try_acquire_and_signal()
-    {
-        typedef ::moodycamel::LightweightSemaphore semaphore;
+	bool try_acquire_and_signal()
+	{
+		typedef ::moodycamel::LightweightSemaphore semaphore;
 
-        semaphore s;
+		semaphore s;
 
-        ASSERT_OR_FAIL(s.availableApprox()==0);
+		ASSERT_OR_FAIL(s.availableApprox()==0);
 
-        s.signal();
-        ASSERT_OR_FAIL(s.availableApprox()==1);
-        ASSERT_OR_FAIL(1==s.tryWaitMany(2));
-        ASSERT_OR_FAIL(s.availableApprox()==0);
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox()==1);
+		ASSERT_OR_FAIL(1==s.tryWaitMany(2));
+		ASSERT_OR_FAIL(s.availableApprox()==0);
 
-        s.signal();
-        ASSERT_OR_FAIL(s.availableApprox()==1);
-        ASSERT_OR_FAIL(1==s.tryWaitMany(3));
-        ASSERT_OR_FAIL(s.availableApprox()==0);
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox()==1);
+		ASSERT_OR_FAIL(1==s.tryWaitMany(3));
+		ASSERT_OR_FAIL(s.availableApprox()==0);
 
-        s.signal(10);
-        ASSERT_OR_FAIL(s.availableApprox()==10);
-        ASSERT_OR_FAIL(10==s.tryWaitMany(100));
-        ASSERT_OR_FAIL(s.availableApprox()==0);
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox()==10);
+		ASSERT_OR_FAIL(10==s.tryWaitMany(100));
+		ASSERT_OR_FAIL(s.availableApprox()==0);
 
-        s.signal(10);
-        ASSERT_OR_FAIL(s.availableApprox()==10);
-        ASSERT_OR_FAIL(5==s.tryWaitMany(5));
-        ASSERT_OR_FAIL(s.availableApprox()==5);
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox()==10);
+		ASSERT_OR_FAIL(5==s.tryWaitMany(5));
+		ASSERT_OR_FAIL(s.availableApprox()==5);
 
-        ASSERT_OR_FAIL(s.tryWait());
-        ASSERT_OR_FAIL(s.availableApprox()==4);
+		ASSERT_OR_FAIL(s.tryWait());
+		ASSERT_OR_FAIL(s.availableApprox()==4);
 
-        ASSERT_OR_FAIL(s.tryWait());
-        ASSERT_OR_FAIL(s.availableApprox()==3);
+		ASSERT_OR_FAIL(s.tryWait());
+		ASSERT_OR_FAIL(s.availableApprox()==3);
 
-        return true;
-    }
+		return true;
+	}
 	
 	struct TestListItem : corealgos::ListItem
 	{
@@ -4784,7 +4784,7 @@ void printTests(ConcurrentQueueTests const& tests)
 	std::vector<std::string> names;
 	tests.getAllTestNames(names);
 	for (auto it = names.cbegin(); it != names.cend(); ++it) {
-		std::printf("      %s\n", it->c_str());
+		std::printf("	  %s\n", it->c_str());
 	}
 }
 
@@ -4863,11 +4863,11 @@ int main(int argc, char** argv)
 			if (error) {
 				std::printf("\n");
 			}
-			std::printf("%s\n    Description: Runs unit tests for moodycamel::ConcurrentQueue\n", progName.c_str());
-			std::printf("    --help            Prints this help blurb\n");
-			std::printf("    --run test        Runs only the specified test(s)\n");
-			std::printf("    --iterations N    Do N iterations of each test\n");
-			std::printf("    --disable-prompt  Disables prompt before exit when the tests finish\n");
+			std::printf("%s\n	Description: Runs unit tests for moodycamel::ConcurrentQueue\n", progName.c_str());
+			std::printf("	--help			Prints this help blurb\n");
+			std::printf("	--run test		Runs only the specified test(s)\n");
+			std::printf("	--iterations N	Do N iterations of each test\n");
+			std::printf("	--disable-prompt  Disables prompt before exit when the tests finish\n");
 			return error ? -1 : 0;
 		}
 	}

@@ -1,4 +1,4 @@
-// Provides an efficient implementation of semaphore (LightweightSemaphore)
+// Provides an efficient implementation of a semaphore (LightweightSemaphore)
 // - a synchronization primitive. This construct has been designed for 
 // threads and not processes.
 // ©2015-2016 Cameron Desrochers. Distributed under the terms of the simplified
@@ -6,16 +6,18 @@
 
 
 
-
-// Uses Jeff Preshing's semaphore implementation (under the terms of its
-// separate zlib license, embedded below).
-
 #pragma once
 
 #include <cstddef> // For std::size_t
 #include <atomic>
 #include <type_traits> // For std::make_signed<T>
 
+
+
+
+
+// Uses Jeff Preshing's semaphore implementation (under the terms of its
+// separate zlib license, embedded below).
 
 #if defined(_WIN32)
 // Avoid including windows.h in a header; we only need a handful of
