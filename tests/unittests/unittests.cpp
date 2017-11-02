@@ -4865,7 +4865,7 @@ int main(int argc, char** argv)
 			std::printf("%s\n    Description: Runs unit tests for moodycamel::ConcurrentQueue\n", progName.c_str());
 			std::printf("    --help            Prints this help blurb\n");
 			std::printf("    --run test        Runs only the specified test(s)\n");
-			std::printf("    --iterations N	   Do N iterations of each test\n");
+			std::printf("    --iterations N    Do N iterations of each test\n");
 			std::printf("    --disable-prompt  Disables prompt before exit when the tests finish\n");
 			return error ? -1 : 0;
 		}
