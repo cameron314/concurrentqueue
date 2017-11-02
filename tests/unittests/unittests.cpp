@@ -60,7 +60,6 @@ namespace {
 	};
 	
 	std::atomic<std::size_t> tracking_allocator::usage(0);
-
 }
 
 struct corealgos_allocator
@@ -4784,7 +4783,7 @@ void printTests(ConcurrentQueueTests const& tests)
 	std::vector<std::string> names;
 	tests.getAllTestNames(names);
 	for (auto it = names.cbegin(); it != names.cend(); ++it) {
-		std::printf("	  %s\n", it->c_str());
+		std::printf("      %s\n", it->c_str());
 	}
 }
 
@@ -4863,11 +4862,11 @@ int main(int argc, char** argv)
 			if (error) {
 				std::printf("\n");
 			}
-			std::printf("%s\n	Description: Runs unit tests for moodycamel::ConcurrentQueue\n", progName.c_str());
-			std::printf("	--help			Prints this help blurb\n");
-			std::printf("	--run test		Runs only the specified test(s)\n");
-			std::printf("	--iterations N	Do N iterations of each test\n");
-			std::printf("	--disable-prompt  Disables prompt before exit when the tests finish\n");
+			std::printf("%s\n    Description: Runs unit tests for moodycamel::ConcurrentQueue\n", progName.c_str());
+			std::printf("    --help			Prints this help blurb\n");
+			std::printf("    --run test		Runs only the specified test(s)\n");
+			std::printf("    --iterations N	Do N iterations of each test\n");
+			std::printf("    --disable-prompt  Disables prompt before exit when the tests finish\n");
 			return error ? -1 : 0;
 		}
 	}
