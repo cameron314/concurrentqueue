@@ -356,8 +356,7 @@ workaround: Create a wrapper class that copies the memory contents of the object
 is assigned by the queue (a poor man's move, essentially). Note that this only works if
 the object contains no internal pointers. Example:
 
-    struct MyObjectMover
-    {
+    struct MyObjectMover {
         inline void operator=(MyObject&& obj)
         {
             std::memcpy(data, &obj, sizeof(MyObject));
@@ -367,10 +366,36 @@ the object contains no internal pointers. Example:
         }
         
         inline MyObject& obj() { return *reinterpret_cast<MyObject*>(data); }
-    	
+    
     private:
-    	align(alignof(MyObject)) char data[sizeof(MyObject)];
+        align(alignof(MyObject)) char data[sizeof(MyObject)];
     };
+
+A less dodgy alternative, if moves are cheap but default construction is not, is to use a
+wrapper that defers construction until the object is assigned, enabling use of the move
+constructor:
+
+    struct MyObjectMover {
+        inline void operator=(MyObject&& x) {
+            new (data) MyObject(std::move(x));
+            created = true;
+        }
+    
+        inline MyObject& obj() {
+            assert(created);
+            return *reinterpret_cast<MyObject*>(data);
+        }
+    
+        ~MyObjectMover() {
+            if (created)
+                obj().~MyObject();
+        }
+    
+    private:
+        align(alignof(MyObject)) char data[sizeof(MyObject)];
+        bool created = false;
+    };
+
 
 ## Samples
 
