@@ -7,7 +7,7 @@ include makefile.inc
 BASE_OPTS = -pthread
 
 DEBUG_OPTS = -g -O0   # -DMOODYCAMEL_QUEUE_INTERNAL_DEBUG
-RELEASE_OPTS = -O3 -g -DNDEBUG
+RELEASE_OPTS = -O2 -g -DNDEBUG
 
 ifeq ($(OS),Windows_NT)
 	PLATFORM_OPTS = -static
@@ -43,6 +43,6 @@ bin/benchmarks$(EXT): bin/libtbb.a ../concurrentqueue.h ../benchmarks/benchmarks
 	
 bin/libtbb.a: makefile
 	test -d bin || mkdir bin
-	g++ -std=c++11 -O3 -DNDEBUG -D__TBB_BUILD=1 $(TBB_PLATFORM_OPTS) -I../benchmarks -c ../benchmarks/tbb/cache_aligned_allocator.cpp ../benchmarks/tbb/concurrent_monitor.cpp ../benchmarks/tbb/concurrent_queue.cpp ../benchmarks/tbb/dynamic_link.cpp ../benchmarks/tbb/tbb_misc.cpp
+	g++ -std=c++11 -O2 -DNDEBUG -D__TBB_BUILD=1 $(TBB_PLATFORM_OPTS) -I../benchmarks -c ../benchmarks/tbb/cache_aligned_allocator.cpp ../benchmarks/tbb/concurrent_monitor.cpp ../benchmarks/tbb/concurrent_queue.cpp ../benchmarks/tbb/dynamic_link.cpp ../benchmarks/tbb/tbb_misc.cpp
 	ar -rc bin/libtbb.a cache_aligned_allocator.o concurrent_monitor.o concurrent_queue.o dynamic_link.o tbb_misc.o
 	rm -f cache_aligned_allocator.o concurrent_monitor.o concurrent_queue.o dynamic_link.o tbb_misc.o
