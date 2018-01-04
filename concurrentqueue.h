@@ -386,6 +386,9 @@ namespace details
 	};
 	template<> struct _hash_32_or_64<1> {
 		static inline std::uint64_t hash(std::uint64_t h)
+        #ifdef __clang__
+            __attribute__((no_sanitize("unsigned-integer-overflow")))
+        #endif
 		{
 			h ^= h >> 33;
 			h *= 0xff51afd7ed558ccd;
@@ -405,6 +408,9 @@ namespace details
 	
 	template<typename T>
 	static inline bool circular_less_than(T a, T b)
+    #ifdef __clang__
+        __attribute__((no_sanitize("unsigned-integer-overflow")))
+    #endif
 	{
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -1307,6 +1313,9 @@ private:
 	}
 	
 	inline bool update_current_producer_after_rotation(consumer_token_t& token)
+    #ifdef __clang__
+        __attribute__((no_sanitize("unsigned-integer-overflow")))
+    #endif
 	{
 		// Ah, there's been a rotation, figure out where we should be!
 		auto tail = producerListTail.load(std::memory_order_acquire);
@@ -2537,6 +2546,9 @@ private:
 #   endif // _MSC_VER
 		template<AllocationMode allocMode, typename It>
 		bool enqueue_bulk(It itemFirst, size_t count)
+        #ifdef __clang__
+            __attribute__((no_sanitize("unsigned-integer-overflow")))
+        #endif
 		{
 			// First, we need to make sure we have enough room to enqueue all of the elements;
 			// this means pre-allocating blocks and putting them in the block index (but only if
@@ -2853,6 +2865,9 @@ private:
 		}
 		
 		inline size_t get_block_index_index_for_index(index_t index, BlockIndexHeader*& localBlockIndex) const
+        #ifdef __clang__
+            __attribute__((no_sanitize("unsigned-integer-overflow")))
+        #endif
 		{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 			debug::DebugLock lock(mutex);
@@ -2871,6 +2886,9 @@ private:
 		}
 		
 		bool new_block_index()
+        #ifdef __clang__
+            __attribute__((no_sanitize("unsigned-integer-overflow")))
+        #endif
 		{
 			auto prev = blockIndex.load(std::memory_order_relaxed);
 			size_t prevCapacity = prev == nullptr ? 0 : prev->capacity;
