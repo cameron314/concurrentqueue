@@ -89,10 +89,10 @@ nitty-gritty details of the design][design], on my blog. Finally, the
 
 The entire queue's implementation is contained in **one header**, [`concurrentqueue.h`][concurrentqueue.h].
 Simply download and include that to use the queue. The blocking version is in a separate header,
-[`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on the first.
-The implementation makes use of certain key C++11 features, so it requires a fairly recent compiler
-(e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
-The algorithm implementations themselves are platform independent.
+[`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on [`concurrentqueue.h`][concurrentqueue.h] and 
+[`lightweightsemaphore.h`][lightweightsemaphore.h]. The implementation makes use of certain key C++11 features,
+so it requires a fairly recent compiler (e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic`
+and is thus not supported). The algorithm implementations themselves are platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
 it from many threads at once :-)
