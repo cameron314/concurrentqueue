@@ -518,7 +518,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(T const& item)
 	{
-		if (details::likely(inner.enqueue(item))) {
+		if ((details::likely)(inner.enqueue(item))) {
 			sema->signal();
 			return true;
 		}
@@ -532,7 +532,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(T&& item)
 	{
-		if (details::likely(inner.enqueue(std::move(item)))) {
+		if ((details::likely)(inner.enqueue(std::move(item)))) {
 			sema->signal();
 			return true;
 		}
@@ -545,7 +545,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T const& item)
 	{
-		if (details::likely(inner.enqueue(token, item))) {
+		if ((details::likely)(inner.enqueue(token, item))) {
 			sema->signal();
 			return true;
 		}
@@ -558,7 +558,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T&& item)
 	{
-		if (details::likely(inner.enqueue(token, std::move(item)))) {
+		if ((details::likely)(inner.enqueue(token, std::move(item)))) {
 			sema->signal();
 			return true;
 		}
@@ -574,7 +574,7 @@ public:
 	template<typename It>
 	inline bool enqueue_bulk(It itemFirst, size_t count)
 	{
-		if (details::likely(inner.enqueue_bulk(std::forward<It>(itemFirst), count))) {
+		if ((details::likely)(inner.enqueue_bulk(std::forward<It>(itemFirst), count))) {
 			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
 			return true;
 		}
@@ -590,7 +590,7 @@ public:
 	template<typename It>
 	inline bool enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
-		if (details::likely(inner.enqueue_bulk(token, std::forward<It>(itemFirst), count))) {
+		if ((details::likely)(inner.enqueue_bulk(token, std::forward<It>(itemFirst), count))) {
 			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
 			return true;
 		}

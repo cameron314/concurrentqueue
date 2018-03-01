@@ -24,6 +24,9 @@
 #include "../../concurrentqueue.h"
 #include "../../blockingconcurrentqueue.h"
 
+#define likely MAKE_SURE_LIKELY_MACRO_CAN_PEACEFULLY_COEXIST
+#define unlikely MAKE_SURE_UNLIKELY_MACRO_CAN_PEACEFULLY_COEXIST
+
 namespace {
 	struct tracking_allocator
 	{
