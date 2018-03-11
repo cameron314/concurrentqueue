@@ -142,13 +142,13 @@ namespace details
 			bool timed_wait(std::uint64_t timeout_usecs)
 			{
 				mach_timespec_t ts;
-				ts.tv_sec = timeout_usecs / 1000000;
+				ts.tv_sec = static_cast<unsigned int>(timeout_usecs / 1000000);
 				ts.tv_nsec = (timeout_usecs % 1000000) * 1000;
 
 				// added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
 				kern_return_t rc = semaphore_timedwait(m_sema, ts);
 
-				return rc != KERN_OPERATION_TIMED_OUT;
+				return rc != KERN_OPERATION_TIMED_OUT && rc != KERN_ABORTED;
 			}
 
 			void signal()
@@ -216,7 +216,7 @@ namespace details
 				ts.tv_nsec += (usecs % usecs_in_1_sec) * 1000;
 				// sem_timedwait bombs if you have more than 1e9 in tv_nsec
 				// so we have to clean things up before passing it in
-				if (ts.tv_nsec > nsecs_in_1_sec) {
+				if (ts.tv_nsec >= nsecs_in_1_sec) {
 					ts.tv_nsec -= nsecs_in_1_sec;
 					++ts.tv_sec;
 				}
@@ -518,7 +518,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(T const& item)
 	{
-		if (details::likely(inner.enqueue(item))) {
+		if ((details::likely)(inner.enqueue(item))) {
 			sema->signal();
 			return true;
 		}
@@ -532,7 +532,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(T&& item)
 	{
-		if (details::likely(inner.enqueue(std::move(item)))) {
+		if ((details::likely)(inner.enqueue(std::move(item)))) {
 			sema->signal();
 			return true;
 		}
@@ -545,7 +545,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T const& item)
 	{
-		if (details::likely(inner.enqueue(token, item))) {
+		if ((details::likely)(inner.enqueue(token, item))) {
 			sema->signal();
 			return true;
 		}
@@ -558,7 +558,7 @@ public:
 	// Thread-safe.
 	inline bool enqueue(producer_token_t const& token, T&& item)
 	{
-		if (details::likely(inner.enqueue(token, std::move(item)))) {
+		if ((details::likely)(inner.enqueue(token, std::move(item)))) {
 			sema->signal();
 			return true;
 		}
@@ -574,7 +574,7 @@ public:
 	template<typename It>
 	inline bool enqueue_bulk(It itemFirst, size_t count)
 	{
-		if (details::likely(inner.enqueue_bulk(std::forward<It>(itemFirst), count))) {
+		if ((details::likely)(inner.enqueue_bulk(std::forward<It>(itemFirst), count))) {
 			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
 			return true;
 		}
@@ -590,7 +590,7 @@ public:
 	template<typename It>
 	inline bool enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
-		if (details::likely(inner.enqueue_bulk(token, std::forward<It>(itemFirst), count))) {
+		if ((details::likely)(inner.enqueue_bulk(token, std::forward<It>(itemFirst), count))) {
 			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
 			return true;
 		}

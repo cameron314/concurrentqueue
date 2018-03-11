@@ -4,6 +4,9 @@
 
 // Unit tests for moodycamel::ConcurrentQueue
 
+#define likely MAKE_SURE_LIKELY_MACRO_CAN_PEACEFULLY_COEXIST
+#define unlikely MAKE_SURE_UNLIKELY_MACRO_CAN_PEACEFULLY_COEXIST
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

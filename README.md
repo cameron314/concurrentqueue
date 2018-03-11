@@ -21,8 +21,9 @@ Note: If all you need is a single-producer, single-consumer queue, I have [one o
 ## Reasons to use
 
 There are not that many full-fledged lock-free queues for C++. Boost has one, but it's limited to objects with trivial
-assignment operators and trivial destructors, for example. Intel's TBB queue isn't lock-free, and requires trivial constructors too.
-There's many academic papers that implement lock-free queues in C++, but usable source code is
+assignment operators and trivial destructors, for example.
+Intel's TBB queue isn't lock-free, and requires trivial constructors too.
+There're many academic papers that implement lock-free queues in C++, but usable source code is
 hard to find, and tests even more so.
 
 This queue not only has less limitations than others (for the most part), but [it's also faster][benchmarks].
@@ -355,8 +356,7 @@ workaround: Create a wrapper class that copies the memory contents of the object
 is assigned by the queue (a poor man's move, essentially). Note that this only works if
 the object contains no internal pointers. Example:
 
-    struct MyObjectMover
-    {
+    struct MyObjectMover {
         inline void operator=(MyObject&& obj)
         {
             std::memcpy(data, &obj, sizeof(MyObject));
@@ -366,10 +366,36 @@ the object contains no internal pointers. Example:
         }
         
         inline MyObject& obj() { return *reinterpret_cast<MyObject*>(data); }
-    	
+    
     private:
-    	align(alignof(MyObject)) char data[sizeof(MyObject)];
+        align(alignof(MyObject)) char data[sizeof(MyObject)];
     };
+
+A less dodgy alternative, if moves are cheap but default construction is not, is to use a
+wrapper that defers construction until the object is assigned, enabling use of the move
+constructor:
+
+    struct MyObjectMover {
+        inline void operator=(MyObject&& x) {
+            new (data) MyObject(std::move(x));
+            created = true;
+        }
+    
+        inline MyObject& obj() {
+            assert(created);
+            return *reinterpret_cast<MyObject*>(data);
+        }
+    
+        ~MyObjectMover() {
+            if (created)
+                obj().~MyObject();
+        }
+    
+    private:
+        align(alignof(MyObject)) char data[sizeof(MyObject)];
+        bool created = false;
+    };
+
 
 ## Samples
 

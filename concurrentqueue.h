@@ -217,11 +217,11 @@ namespace moodycamel { namespace details {
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
 #if defined(__GNUC__)
-	inline bool likely(bool x) { return __builtin_expect((x), true); }
-	inline bool unlikely(bool x) { return __builtin_expect((x), false); }
+	static inline bool (likely)(bool x) { return __builtin_expect((x), true); }
+	static inline bool (unlikely)(bool x) { return __builtin_expect((x), false); }
 #else
-	inline bool likely(bool x) { return x; }
-	inline bool unlikely(bool x) { return x; }
+	static inline bool (likely)(bool x) { return x; }
+	static inline bool (unlikely)(bool x) { return x; }
 #endif
 } }
 
@@ -239,11 +239,19 @@ namespace details {
 			: static_cast<T>(-1);
 	};
 
-#if defined(__GNUC__) && !defined( __clang__ )
-	typedef ::max_align_t max_align_t;      // GCC forgot to add it to std:: for a while
+#if defined(__GLIBCXX__)
+	typedef ::max_align_t std_max_align_t;      // libstdc++ forgot to add it to std:: for a while
 #else
-	typedef std::max_align_t max_align_t;   // Others (e.g. MSVC) insist it can *only* be accessed via std::
+	typedef std::max_align_t std_max_align_t;   // Others (e.g. MSVC) insist it can *only* be accessed via std::
 #endif
+
+	// Some platforms have incorrectly set max_align_t to a type with <8 bytes alignment even while supporting
+	// 8-byte aligned scalar values (*cough* 32-bit iOS). Work around this with our own union. See issue #64.
+	typedef union {
+		std_max_align_t x;
+		long long y;
+		void* z;
+	} max_align_t;
 }
 
 // Default traits for the ConcurrentQueue. To change some of the
@@ -1051,7 +1059,7 @@ public:
 		// If there was at least one non-empty queue but it appears empty at the time
 		// we try to dequeue from it, we need to make sure every queue's been tried
 		if (nonEmptyCount > 0) {
-			if (details::likely(best->dequeue(item))) {
+			if ((details::likely)(best->dequeue(item))) {
 				return true;
 			}
 			for (auto ptr = producerListTail.load(std::memory_order_acquire); ptr != nullptr; ptr = ptr->next_prod()) {
@@ -1303,7 +1311,7 @@ private:
 		}
 		auto prodCount = producerCount.load(std::memory_order_relaxed);
 		auto globalOffset = globalExplicitConsumerOffset.load(std::memory_order_relaxed);
-		if (details::unlikely(token.desiredProducer == nullptr)) {
+		if ((details::unlikely)(token.desiredProducer == nullptr)) {
 			// Aha, first time we're dequeueing anything.
 			// Figure out our local position
 			// Note: offset is from start, not end, but we're traversing from end -- subtract from count first
@@ -1398,14 +1406,14 @@ private:
 					assert((head->freeListRefs.load(std::memory_order_relaxed) & SHOULD_BE_ON_FREELIST) == 0);
 					
 					// Decrease refcount twice, once for our ref, and once for the list's ref
-					head->freeListRefs.fetch_add(-2, std::memory_order_release);
+					head->freeListRefs.fetch_sub(2, std::memory_order_release);
 					return head;
 				}
 				
 				// OK, the head must have changed on us, but we still need to decrease the refcount we increased.
 				// Note that we don't need to release any memory effects, but we do need to ensure that the reference
 				// count decrement happens-after the CAS on the head.
-				refs = prevHead->freeListRefs.fetch_add(-1, std::memory_order_acq_rel);
+				refs = prevHead->freeListRefs.fetch_sub(1, std::memory_order_acq_rel);
 				if (refs == SHOULD_BE_ON_FREELIST + 1) {
 					add_knowing_refcount_is_zero(prevHead);
 				}
@@ -1908,7 +1916,7 @@ private:
 				// this load is sequenced after (happens after) the earlier load above. This is supported by read-read
 				// coherency (as defined in the standard), explained here: http://en.cppreference.com/w/cpp/atomic/memory_order
 				tail = this->tailIndex.load(std::memory_order_acquire);
-				if (details::likely(details::circular_less_than<index_t>(myDequeueCount - overcommit, tail))) {
+				if ((details::likely)(details::circular_less_than<index_t>(myDequeueCount - overcommit, tail))) {
 					// Guaranteed to be at least one element to dequeue!
 					
 					// Get the index. Note that since there's guaranteed to be at least one element, this
@@ -2471,7 +2479,7 @@ private:
 				index_t myDequeueCount = this->dequeueOptimisticCount.fetch_add(1, std::memory_order_relaxed);
 				assert(overcommit <= myDequeueCount);
 				tail = this->tailIndex.load(std::memory_order_acquire);
-				if (details::likely(details::circular_less_than<index_t>(myDequeueCount - overcommit, tail))) {
+				if ((details::likely)(details::circular_less_than<index_t>(myDequeueCount - overcommit, tail))) {
 					index_t index = this->headIndex.fetch_add(1, std::memory_order_acq_rel);
 					
 					// Determine which block the element is in
@@ -3362,7 +3370,7 @@ private:
 					auto raw = static_cast<char*>((Traits::malloc)(sizeof(ImplicitProducerHash) + std::alignment_of<ImplicitProducerKVP>::value - 1 + sizeof(ImplicitProducerKVP) * newCapacity));
 					if (raw == nullptr) {
 						// Allocation failed
-						implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
+						implicitProducerHashCount.fetch_sub(1, std::memory_order_relaxed);
 						implicitProducerHashResizeInProgress.clear(std::memory_order_relaxed);
 						return nullptr;
 					}
@@ -3391,11 +3399,11 @@ private:
 				bool recycled;
 				auto producer = static_cast<ImplicitProducer*>(recycle_or_create_producer(false, recycled));
 				if (producer == nullptr) {
-					implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
+					implicitProducerHashCount.fetch_sub(1, std::memory_order_relaxed);
 					return nullptr;
 				}
 				if (recycled) {
-					implicitProducerHashCount.fetch_add(-1, std::memory_order_relaxed);
+					implicitProducerHashCount.fetch_sub(1, std::memory_order_relaxed);
 				}
 				
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED

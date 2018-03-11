@@ -22,7 +22,7 @@
 #include <algorithm>
 #include <cctype>
 
-#include "../concurrentqueue.h"
+#include "../blockingconcurrentqueue.h"
 #include "lockbasedqueue.h"
 #include "simplelockfree.h"
 #include "boostqueue.h"
@@ -186,6 +186,7 @@ int BENCHMARK_THREADS[BENCHMARK_TYPE_COUNT][9] = {
 enum queue_id_t
 {
 	queue_moodycamel_ConcurrentQueue,
+	queue_moodycamel_BlockingConcurrentQueue,
 	queue_boost,
 	queue_tbb,
 	queue_simplelockfree,
@@ -197,6 +198,7 @@ enum queue_id_t
 
 const char QUEUE_NAMES[QUEUE_COUNT][64] = {
 	"moodycamel::ConcurrentQueue",
+	"moodycamel::BlockingConcurrentQueue",
 	"boost::lockfree::queue",
 	"tbb::concurrent_queue",
 	"SimpleLockFreeQueue",
@@ -206,6 +208,7 @@ const char QUEUE_NAMES[QUEUE_COUNT][64] = {
 
 const char QUEUE_SUMMARY_NOTES[QUEUE_COUNT][128] = {
 	"including bulk",
+	"including bulk",
 	"",
 	"",
 	"",
@@ -214,6 +217,7 @@ const char QUEUE_SUMMARY_NOTES[QUEUE_COUNT][128] = {
 };
 
 const bool QUEUE_TOKEN_SUPPORT[QUEUE_COUNT] = {
+	true,
 	true,
 	false,
 	false,
@@ -228,10 +232,12 @@ const int QUEUE_MAX_THREADS[QUEUE_COUNT] = {
 	-1,
 	-1,
 	-1,
+	-1,
 	1,
 };
 
 const bool QUEUE_BENCH_SUPPORT[QUEUE_COUNT][BENCHMARK_TYPE_COUNT] = {
+	{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
 	{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
 	{ 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1 },
 	{ 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1 },
@@ -1960,6 +1966,9 @@ int main(int argc, char** argv)
 					case queue_moodycamel_ConcurrentQueue:
 						maxOps = determineMaxOpsForBenchmark<moodycamel::ConcurrentQueue<int, Traits>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed);
 						break;
+					case queue_moodycamel_BlockingConcurrentQueue:
+						maxOps = determineMaxOpsForBenchmark<moodycamel::BlockingConcurrentQueue<int, Traits>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed);
+						break;
 					case queue_lockbased:
 						maxOps = determineMaxOpsForBenchmark<LockBasedQueue<int>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed);
 						break;
@@ -1989,6 +1998,9 @@ int main(int argc, char** argv)
 						switch ((queue_id_t)queue) {
 						case queue_moodycamel_ConcurrentQueue:
 							elapsed = runBenchmark<moodycamel::ConcurrentQueue<int, Traits>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed, maxOps, maxThreads, ops);
+							break;
+						case queue_moodycamel_BlockingConcurrentQueue:
+							elapsed = runBenchmark<moodycamel::BlockingConcurrentQueue<int, Traits>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed, maxOps, maxThreads, ops);
 							break;
 						case queue_lockbased:
 							elapsed = runBenchmark<LockBasedQueue<int>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed, maxOps, maxThreads, ops);
