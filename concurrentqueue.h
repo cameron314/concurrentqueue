@@ -1620,7 +1620,13 @@ private:
 	///////////////////////////
 	// Producer base
 	///////////////////////////
-	
+
+	//MSVC in VS 15.7 Seems to do template expantion in a different order, these forward declares fix
+	//     that MSVC can't find definitions for these two structs in dequeue and dequeue_bulk
+	struct ProducerBase;
+	struct ExplicitProducer;
+	struct ImplicitProducer;
+
 	struct ProducerBase : public details::ConcurrentQueueProducerTypelessBase
 	{
 		ProducerBase(ConcurrentQueue* parent_, bool isExplicit_) :
