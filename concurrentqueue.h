@@ -1266,7 +1266,10 @@ public:
 private:
 	friend struct ProducerToken;
 	friend struct ConsumerToken;
+	struct ExplicitProducer;
 	friend struct ExplicitProducer;
+	struct ImplicitProducer;
+	friend struct ImplicitProducer;
 	friend class ConcurrentQueueTests;
 		
 	enum AllocationMode { CanAlloc, CannotAlloc };
