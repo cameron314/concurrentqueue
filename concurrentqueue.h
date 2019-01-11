@@ -1,4 +1,4 @@
-﻿// Provides a C++11 implementation of a multi-producer, multi-consumer lock-free queue.
+// Provides a C++11 implementation of a multi-producer, multi-consumer lock-free queue.
 // An overview, including benchmark results, is provided here:
 //     http://moodycamel.com/blog/2014/a-fast-general-purpose-lock-free-queue-for-c++
 // The full design is also described in excruciating detail at:
