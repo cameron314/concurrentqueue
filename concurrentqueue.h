@@ -2866,7 +2866,11 @@ private:
 		
 		inline size_t get_block_index_index_for_index(index_t index, BlockIndexHeader*& localBlockIndex) const
         #ifdef __clang__
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wunknown-sanitizers"
             __attribute__((no_sanitize("unsigned-integer-overflow")))
+            __attribute__((no_sanitize("implicit-integer-sign-change")))
+        #pragma clang diagnostic pop
         #endif
 		{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
