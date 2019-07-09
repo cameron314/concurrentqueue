@@ -1962,12 +1962,12 @@ private:
 								block->ConcurrentQueue::Block::template set_empty<explicit_context>(index);
 							}
 						} guard = { block, index };
-						
-						element = std::move(el);
+
+						element = std::move(el); // NOLINT
 					}
 					else {
-						element = std::move(el);
-						el.~T();
+						element = std::move(el); // NOLINT
+						el.~T(); // NOLINT
 						block->ConcurrentQueue::Block::template set_empty<explicit_context>(index);
 					}
 					
@@ -2512,13 +2512,13 @@ private:
 								}
 							}
 						} guard = { block, index, entry, this->parent };
-						
-						element = std::move(el);
+
+						element = std::move(el); // NOLINT
 					}
 					else {
-						element = std::move(el);
-						el.~T();
-					
+						element = std::move(el); // NOLINT
+						el.~T(); // NOLINT
+
 						if (block->ConcurrentQueue::Block::template set_empty<implicit_context>(index)) {
 							{
 #if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
