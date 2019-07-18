@@ -1374,7 +1374,7 @@ private:
 		
 		inline void add(N* node)
 		{
-#if MCDBGQ_NOLOCKFREE_FREELIST
+#ifdef MCDBGQ_NOLOCKFREE_FREELIST
 			debug::DebugLock lock(mutex);
 #endif		
 			// We know that the should-be-on-freelist bit is 0 at this point, so it's safe to
@@ -1388,7 +1388,7 @@ private:
 		
 		inline N* try_get()
 		{
-#if MCDBGQ_NOLOCKFREE_FREELIST
+#ifdef MCDBGQ_NOLOCKFREE_FREELIST
 			debug::DebugLock lock(mutex);
 #endif		
 			auto head = freeListHead.load(std::memory_order_acquire);
@@ -1460,7 +1460,7 @@ private:
 	static const std::uint32_t REFS_MASK = 0x7FFFFFFF;
 	static const std::uint32_t SHOULD_BE_ON_FREELIST = 0x80000000;
 		
-#if MCDBGQ_NOLOCKFREE_FREELIST
+#ifdef MCDBGQ_NOLOCKFREE_FREELIST
 		debug::DebugMutex mutex;
 #endif
 	};
@@ -1477,7 +1477,7 @@ private:
 		Block()
 			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
 		{
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 			owner = nullptr;
 #endif
 		}
@@ -1607,14 +1607,14 @@ private:
 		std::atomic<bool> shouldBeOnFreeList;
 		bool dynamicallyAllocated;		// Perhaps a better name for this would be 'isNotPartOfInitialBlockPool'
 		
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 		void* owner;
 #endif
 	};
 	static_assert(std::alignment_of<Block>::value >= std::alignment_of<details::max_align_t>::value, "Internal error: Blocks must be at least as aligned as the type they are wrapping");
 
 
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 public:
 	struct MemStats;
 private:
@@ -1685,7 +1685,7 @@ private:
 		ConcurrentQueue* parent;
 		
 	protected:
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 		friend struct MemStats;
 #endif
 	};
@@ -1828,7 +1828,7 @@ private:
 					if (newBlock == nullptr) {
 						return false;
 					}
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 					newBlock->owner = this;
 #endif
 					newBlock->ConcurrentQueue::Block::template reset_empty<explicit_context>();
@@ -1962,12 +1962,12 @@ private:
 								block->ConcurrentQueue::Block::template set_empty<explicit_context>(index);
 							}
 						} guard = { block, index };
-						
-						element = std::move(el);
+
+						element = std::move(el); // NOLINT
 					}
 					else {
-						element = std::move(el);
-						el.~T();
+						element = std::move(el); // NOLINT
+						el.~T(); // NOLINT
 						block->ConcurrentQueue::Block::template set_empty<explicit_context>(index);
 					}
 					
@@ -2045,7 +2045,7 @@ private:
 						return false;
 					}
 					
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 					newBlock->owner = this;
 #endif
 					newBlock->ConcurrentQueue::Block::template set_all_empty<explicit_context>();
@@ -2331,7 +2331,7 @@ private:
 	private:
 #endif
 		
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 		friend struct MemStats;
 #endif
 	};
@@ -2418,7 +2418,7 @@ private:
 				if (!details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head))) {
 					return false;
 				}
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 				debug::DebugLock lock(mutex);
 #endif
 				// Find out where we'll be inserting this block in the block index
@@ -2434,7 +2434,7 @@ private:
 					idxEntry->value.store(nullptr, std::memory_order_relaxed);
 					return false;
 				}
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 				newBlock->owner = this;
 #endif
 				newBlock->ConcurrentQueue::Block::template reset_empty<implicit_context>();
@@ -2492,7 +2492,7 @@ private:
 					auto& el = *((*block)[index]);
 					
 					if (!MOODYCAMEL_NOEXCEPT_ASSIGN(T, T&&, element = std::move(el))) {
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 						// Note: Acquiring the mutex with every dequeue instead of only when a block
 						// is released is very sub-optimal, but it is, after all, purely debug code.
 						debug::DebugLock lock(producer->mutex);
@@ -2512,16 +2512,16 @@ private:
 								}
 							}
 						} guard = { block, index, entry, this->parent };
-						
-						element = std::move(el);
+
+						element = std::move(el); // NOLINT
 					}
 					else {
-						element = std::move(el);
-						el.~T();
-					
+						element = std::move(el); // NOLINT
+						el.~T(); // NOLINT
+
 						if (block->ConcurrentQueue::Block::template set_empty<implicit_context>(index)) {
 							{
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 								debug::DebugLock lock(mutex);
 #endif
 								// Add the block back into the global free pool (and remove from block index)
@@ -2562,7 +2562,7 @@ private:
 			size_t blockBaseDiff = ((startTailIndex + count - 1) & ~static_cast<index_t>(BLOCK_SIZE - 1)) - ((startTailIndex - 1) & ~static_cast<index_t>(BLOCK_SIZE - 1));
 			index_t currentTailIndex = (startTailIndex - 1) & ~static_cast<index_t>(BLOCK_SIZE - 1);
 			if (blockBaseDiff > 0) {
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 				debug::DebugLock lock(mutex);
 #endif
 				do {
@@ -2596,7 +2596,7 @@ private:
 						return false;
 					}
 					
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 					newBlock->owner = this;
 #endif
 					newBlock->ConcurrentQueue::Block::template reset_empty<implicit_context>();
@@ -2753,7 +2753,7 @@ private:
 									}
 									
 									if (block->ConcurrentQueue::Block::template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 										debug::DebugLock lock(mutex);
 #endif
 										entry->value.store(nullptr, std::memory_order_relaxed);
@@ -2771,7 +2771,7 @@ private:
 						}
 						if (block->ConcurrentQueue::Block::template set_many_empty<implicit_context>(blockStartIndex, static_cast<size_t>(endIndex - blockStartIndex))) {
 							{
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 								debug::DebugLock lock(mutex);
 #endif
 								// Note that the set_many_empty above did a release, meaning that anybody who acquires the block
@@ -2857,7 +2857,7 @@ private:
 		
 		inline size_t get_block_index_index_for_index(index_t index, BlockIndexHeader*& localBlockIndex) const
 		{
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 			debug::DebugLock lock(mutex);
 #endif
 			index &= ~static_cast<index_t>(BLOCK_SIZE - 1);
@@ -2933,10 +2933,10 @@ private:
 	private:
 #endif
 
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODBLOCKINDEX
 		mutable debug::DebugMutex mutex;
 #endif
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 		friend struct MemStats;
 #endif
 	};
@@ -2976,7 +2976,7 @@ private:
 	
 	inline void add_block_to_free_list(Block* block)
 	{
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 		block->owner = nullptr;
 #endif
 		freeList.add(block);
@@ -3018,7 +3018,7 @@ private:
 	}
 	
 
-#if MCDBGQ_TRACKMEM
+#ifdef MCDBGQ_TRACKMEM
 	public:
 		struct MemStats {
 			size_t allocatedBlocks;
@@ -3136,7 +3136,7 @@ private:
 	
 	ProducerBase* recycle_or_create_producer(bool isExplicit, bool& recycled)
 	{
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
 		// Try to re-use one first
@@ -3303,7 +3303,7 @@ private:
 		
 		// Code and algorithm adapted from http://preshing.com/20130605/the-worlds-simplest-lock-free-hash-table
 		
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
 		
@@ -3448,7 +3448,7 @@ private:
 		details::ThreadExitNotifier::unsubscribe(&producer->threadExitListener);
 		
 		// Remove from hash
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
 		auto hash = implicitProducerHash.load(std::memory_order_acquire);
@@ -3561,7 +3561,7 @@ private:
 	std::atomic<std::uint32_t> nextExplicitConsumerId;
 	std::atomic<std::uint32_t> globalExplicitConsumerOffset;
 	
-#if MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
+#ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 	debug::DebugMutex implicitProdMutex;
 #endif
 	
