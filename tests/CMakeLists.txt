@@ -25,6 +25,7 @@ set(LIBTBB_SRC
 )
 add_library(libtbb STATIC ${LIBTBB_SRC})
 target_include_directories(libtbb PUBLIC ${concurrentqueue_SOURCE_DIR}/benchmarks/)
+set_property(TARGET libtbb PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 set(BENCHMARKS_SRC
         ${concurrentqueue_SOURCE_DIR}/benchmarks/benchmarks.cpp

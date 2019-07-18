@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.13)
 project(concurrentqueue VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_C_STANDARD 11)
@@ -13,7 +13,7 @@ add_library(concurrentqueue INTERFACE)
 target_compile_options(concurrentqueue INTERFACE -Wall -pedantic-errors -Wpedantic -Wconversion -fno-elide-constructors)
 
 target_include_directories(concurrentqueue INTERFACE
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(concurrentqueue INTERFACE Threads::Threads rt)

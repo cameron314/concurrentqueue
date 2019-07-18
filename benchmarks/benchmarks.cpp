@@ -22,7 +22,7 @@
 #include <algorithm>
 #include <cctype>
 
-#include "../blockingconcurrentqueue.h"
+#include "concurrentqueue/blockingconcurrentqueue.h"
 #include "lockbasedqueue.h"
 #include "simplelockfree.h"
 #include "boostqueue.h"
