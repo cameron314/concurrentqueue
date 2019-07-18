@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(concurrentqueue VERSION 0.1 LANGUAGES CXX)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
