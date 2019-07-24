@@ -31,15 +31,15 @@ benchmarks: bin/benchmarks$(EXT)
 
 bin/unittests$(EXT): ../concurrentqueue.h ../blockingconcurrentqueue.h ../tests/unittests/unittests.cpp ../tests/unittests/mallocmacro.cpp ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp ../tests/corealgos.h ../tests/unittests/minitest.h makefile
 	test -d bin || mkdir bin
-	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion $(OPTS) -fno-elide-constructors ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/unittests/unittests.cpp -o bin/unittests$(EXT) $(LD_OPTS)
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion $(OPTS) -I../include -fno-elide-constructors ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/unittests/unittests.cpp -o bin/unittests$(EXT) $(LD_OPTS)
 
 bin/fuzztests$(EXT): ../concurrentqueue.h ../tests/fuzztests/fuzztests.cpp ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp ../tests/corealgos.h makefile
 	test -d bin || mkdir bin
-	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/fuzztests/fuzztests.cpp -o bin/fuzztests$(EXT) $(LD_OPTS)
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) -I../include ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/fuzztests/fuzztests.cpp -o bin/fuzztests$(EXT) $(LD_OPTS)
 
 bin/benchmarks$(EXT): bin/libtbb.a ../concurrentqueue.h ../benchmarks/benchmarks.cpp ../benchmarks/cpuid.h ../benchmarks/cpuid.cpp ../benchmarks/lockbasedqueue.h ../benchmarks/simplelockfree.h ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp makefile
 	test -d bin || mkdir bin
-	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) -I../benchmarks ../benchmarks/cpuid.cpp ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../benchmarks/benchmarks.cpp -o bin/benchmarks$(EXT) -Lbin -ltbb $(LD_OPTS)
+	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic $(BENCH_OPTS) -I../include -I../benchmarks ../benchmarks/cpuid.cpp ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../benchmarks/benchmarks.cpp -o bin/benchmarks$(EXT) -Lbin -ltbb $(LD_OPTS)
 	
 bin/libtbb.a: makefile
 	test -d bin || mkdir bin

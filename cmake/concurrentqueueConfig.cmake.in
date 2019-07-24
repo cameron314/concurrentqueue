@@ -1,0 +1,4 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_INSTALL_PREFIX}/lib/cmake/concurrentqueue/concurrentqueueTargets.cmake")
+check_required_components("@PROJECT_NAME@")
