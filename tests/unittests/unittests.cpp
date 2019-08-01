@@ -117,6 +117,13 @@ struct ExtraSmallIndexTraits : public MallocTrackingTraits
 	typedef uint8_t index_t;
 };
 
+struct LargeTraits : public MallocTrackingTraits
+{
+	static const size_t BLOCK_SIZE = 128;
+	static const size_t INITIAL_IMPLICIT_PRODUCER_HASH_SIZE = 128;
+	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = 128;
+};
+
 // Note: Not thread safe!
 struct Foo
 {
@@ -297,6 +304,7 @@ public:
 		REGISTER_TEST(core_spmc_hash);
 		
 		REGISTER_TEST(explicit_strings_threaded);
+		REGISTER_TEST(large_traits);
 	}
 	
 	bool postTest(bool testSucceeded) override
@@ -4636,6 +4644,35 @@ public:
 			threads[tid].join();
 		}
 		
+		return true;
+	}
+
+	bool large_traits()
+	{
+		union Elem { uint32_t x; char dummy[156]; };
+
+		ConcurrentQueue<Elem, LargeTraits> q(10000, 0, 48);
+		std::vector<SimpleThread> threads(48);
+		for (size_t tid = 0; tid != threads.size(); ++tid) {
+			threads[tid] = SimpleThread([&](size_t tid) {
+				const size_t ELEMENTS = 5000;
+				if (tid != 0) {
+					// Produce
+					for (uint32_t i = 0; i != ELEMENTS; ++i)
+						q.try_enqueue(Elem { ((uint32_t)tid << 16) | i });
+				}
+				else {
+					// Consume
+					Elem item[256];
+					for (size_t i = 0; i != ELEMENTS * 200; ++i)
+						q.try_dequeue_bulk(item, sizeof(item) / sizeof(item[0]));
+				}
+			}, tid);
+		}
+		for (size_t tid = 0; tid != threads.size(); ++tid) {
+			threads[tid].join();
+		}
+
 		return true;
 	}
 };
