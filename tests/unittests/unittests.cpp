@@ -7,6 +7,10 @@
 #define likely MAKE_SURE_LIKELY_MACRO_CAN_PEACEFULLY_COEXIST
 #define unlikely MAKE_SURE_UNLIKELY_MACRO_CAN_PEACEFULLY_COEXIST
 
+struct MakeSureCustomNewCanPeacefullyCoexist;
+void* operator new(size_t size, MakeSureCustomNewCanPeacefullyCoexist* x);
+void operator delete(void* ptr, MakeSureCustomNewCanPeacefullyCoexist* x);
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
