@@ -3547,7 +3547,7 @@ private:
 	Block* initialBlockPool;
 	size_t initialBlockPoolSize;
 	
-#if !MCDBGQ_USEDEBUGFREELIST
+#ifndef MCDBGQ_USEDEBUGFREELIST
 	FreeList<Block> freeList;
 #else
 	debug::DebugFreeList<Block> freeList;
