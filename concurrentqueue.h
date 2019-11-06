@@ -1697,8 +1697,8 @@ private:
 		
 	struct ExplicitProducer : public ProducerBase
 	{
-		explicit ExplicitProducer(ConcurrentQueue* parent) :
-			ProducerBase(parent, true),
+		explicit ExplicitProducer(ConcurrentQueue* parent_) :
+			ProducerBase(parent_, true),
 			blockIndex(nullptr),
 			pr_blockIndexSlotsUsed(0),
 			pr_blockIndexSize(EXPLICIT_INITIAL_INDEX_SIZE >> 1),
@@ -2343,8 +2343,8 @@ private:
 	
 	struct ImplicitProducer : public ProducerBase
 	{			
-		ImplicitProducer(ConcurrentQueue* parent) :
-			ProducerBase(parent, false),
+		ImplicitProducer(ConcurrentQueue* parent_) :
+			ProducerBase(parent_, false),
 			nextBlockIndexCapacity(IMPLICIT_INITIAL_INDEX_SIZE),
 			blockIndex(nullptr)
 		{
