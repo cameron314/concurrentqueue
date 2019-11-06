@@ -1706,7 +1706,7 @@ private:
 			pr_blockIndexEntries(nullptr),
 			pr_blockIndexRaw(nullptr)
 		{
-			size_t poolBasedIndexSize = details::ceil_to_pow_2(parent->initialBlockPoolSize) >> 1;
+			size_t poolBasedIndexSize = details::ceil_to_pow_2(parent_->initialBlockPoolSize) >> 1;
 			if (poolBasedIndexSize > pr_blockIndexSize) {
 				pr_blockIndexSize = poolBasedIndexSize;
 			}
