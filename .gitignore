@@ -9,6 +9,8 @@
 *.VC.db
 build/bin/
 build/*.log
+build/msvc16/*.log
+build/msvc16/obj/
 build/msvc15/*.log
 build/msvc15/obj/
 build/msvc14/*.log
