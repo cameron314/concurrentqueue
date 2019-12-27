@@ -74,6 +74,7 @@ namespace details
 				assert(initialCount >= 0);
 				const long maxLong = 0x7fffffff;
 				m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
+				assert(m_hSema);
 			}
 
 			~Semaphore()
@@ -81,27 +82,25 @@ namespace details
 				CloseHandle(m_hSema);
 			}
 
-			void wait()
+			bool wait()
 			{
 				const unsigned long infinite = 0xffffffff;
-				WaitForSingleObject(m_hSema, infinite);
+				return WaitForSingleObject(m_hSema, infinite) == 0;
 			}
 			
 			bool try_wait()
 			{
-				const unsigned long RC_WAIT_TIMEOUT = 0x00000102;
-				return WaitForSingleObject(m_hSema, 0) != RC_WAIT_TIMEOUT;
+				return WaitForSingleObject(m_hSema, 0) == 0;
 			}
 			
 			bool timed_wait(std::uint64_t usecs)
 			{
-				const unsigned long RC_WAIT_TIMEOUT = 0x00000102;
-				return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) != RC_WAIT_TIMEOUT;
+				return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) == 0;
 			}
 
 			void signal(int count = 1)
 			{
-				ReleaseSemaphore(m_hSema, count, nullptr);
+				while (!ReleaseSemaphore(m_hSema, count, nullptr));
 			}
 		};
 #elif defined(__MACH__)
@@ -121,7 +120,8 @@ namespace details
 			Semaphore(int initialCount = 0)
 			{
 				assert(initialCount >= 0);
-				semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
+				kern_return_t rc = semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
+				assert(rc == KERN_SUCCESS);
 			}
 
 			~Semaphore()
@@ -129,9 +129,9 @@ namespace details
 				semaphore_destroy(mach_task_self(), m_sema);
 			}
 
-			void wait()
+			bool wait()
 			{
-				semaphore_wait(m_sema);
+				return semaphore_wait(m_sema) == KERN_SUCCESS;
 			}
 			
 			bool try_wait()
@@ -147,20 +147,19 @@ namespace details
 
 				// added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
 				kern_return_t rc = semaphore_timedwait(m_sema, ts);
-
-				return rc != KERN_OPERATION_TIMED_OUT && rc != KERN_ABORTED;
+				return rc == KERN_SUCCESS;
 			}
 
 			void signal()
 			{
-				semaphore_signal(m_sema);
+				while (semaphore_signal(m_sema) != KERN_SUCCESS);
 			}
 
 			void signal(int count)
 			{
 				while (count-- > 0)
 				{
-					semaphore_signal(m_sema);
+					while (semaphore_signal(m_sema) != KERN_SUCCESS);
 				}
 			}
 		};
@@ -180,7 +179,8 @@ namespace details
 			Semaphore(int initialCount = 0)
 			{
 				assert(initialCount >= 0);
-				sem_init(&m_sema, 0, initialCount);
+				int rc = sem_init(&m_sema, 0, initialCount);
+				assert(rc == 0);
 			}
 
 			~Semaphore()
@@ -188,13 +188,14 @@ namespace details
 				sem_destroy(&m_sema);
 			}
 
-			void wait()
+			bool wait()
 			{
 				// http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
 				int rc;
 				do {
 					rc = sem_wait(&m_sema);
 				} while (rc == -1 && errno == EINTR);
+				return rc == 0;
 			}
 
 			bool try_wait()
@@ -203,7 +204,7 @@ namespace details
 				do {
 					rc = sem_trywait(&m_sema);
 				} while (rc == -1 && errno == EINTR);
-				return !(rc == -1 && errno == EAGAIN);
+				return rc == 0;
 			}
 
 			bool timed_wait(std::uint64_t usecs)
@@ -225,19 +226,19 @@ namespace details
 				do {
 					rc = sem_timedwait(&m_sema, &ts);
 				} while (rc == -1 && errno == EINTR);
-				return !(rc == -1 && errno == ETIMEDOUT);
+				return rc == 0;
 			}
 
 			void signal()
 			{
-				sem_post(&m_sema);
+				while (sem_post(&m_sema) == -1);
 			}
 
 			void signal(int count)
 			{
 				while (count-- > 0)
 				{
-					sem_post(&m_sema);
+					while (sem_post(&m_sema) == -1);
 				}
 			}
 		};
@@ -275,10 +276,7 @@ namespace details
 				if (oldCount > 0)
 					return true;
 				if (timeout_usecs < 0)
-				{
-					m_sema.wait();
-					return true;
-				}
+					return m_sema.wait();
 				if (m_sema.timed_wait((std::uint64_t)timeout_usecs))
 					return true;
 				// At this point, we've timed out waiting for the semaphore, but the
@@ -316,7 +314,10 @@ namespace details
 				if (oldCount <= 0)
 				{
 					if (timeout_usecs < 0)
-						m_sema.wait();
+					{
+						if (!m_sema.wait())
+							return 0;
+					}
 					else if (!m_sema.timed_wait((std::uint64_t)timeout_usecs))
 					{
 						while (true)
@@ -351,10 +352,9 @@ namespace details
 				return false;
 			}
 
-			void wait()
+			bool wait()
 			{
-				if (!tryWait())
-					waitWithPartialSpinning();
+				return tryWait() || waitWithPartialSpinning();
 			}
 
 			bool wait(std::int64_t timeout_usecs)
@@ -754,7 +754,9 @@ public:
 	template<typename U>
 	inline void wait_dequeue(U& item)
 	{
-		sema->wait();
+		while (!sema->wait()) {
+			continue;
+		}
 		while (!inner.try_dequeue(item)) {
 			continue;
 		}
@@ -795,7 +797,9 @@ public:
 	template<typename U>
 	inline void wait_dequeue(consumer_token_t& token, U& item)
 	{
-		sema->wait();
+		while (!sema->wait()) {
+			continue;
+		}
 		while (!inner.try_dequeue(token, item)) {
 			continue;
 		}
