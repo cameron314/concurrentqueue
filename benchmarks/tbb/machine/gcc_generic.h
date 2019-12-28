@@ -77,9 +77,9 @@ __TBB_MACHINE_DEFINE_ATOMICS(8,int64_t)
 #undef __TBB_MACHINE_DEFINE_ATOMICS
 
 namespace tbb{ namespace internal { namespace gcc_builtins {
-    inline int clz(unsigned int x){ return __builtin_clz(x);};
-    inline int clz(unsigned long int x){ return __builtin_clzl(x);};
-    inline int clz(unsigned long long int x){ return __builtin_clzll(x);};
+    inline int clz(unsigned int x){ return __builtin_clz(x);}
+    inline int clz(unsigned long int x){ return __builtin_clzl(x);}
+    inline int clz(unsigned long long int x){ return __builtin_clzll(x);}
 }}}
 //gcc __builtin_clz builtin count _number_ of leading zeroes
 static inline intptr_t __TBB_machine_lg( uintptr_t x ) {
