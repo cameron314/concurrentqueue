@@ -214,6 +214,19 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
+#ifndef MOODYCAMEL_ALIGNAS
+// VS2013 doesn't support alignas or alignof
+#if defined(_MSC_VER) && _MSC_VER <= 1800
+#define MOODYCAMEL_ALIGNAS(alignment) __declspec(align(alignment))
+#define MOODYCAMEL_ALIGNOF(obj) __alignof(obj)
+#else
+#define MOODYCAMEL_ALIGNAS(alignment) alignas(alignment)
+#define MOODYCAMEL_ALIGNOF(obj) alignof(obj)
+#endif
+#endif
+
+
+
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
 #if defined(__GNUC__)
@@ -1472,7 +1485,7 @@ private:
 	
 	enum InnerQueueContext { implicit_context = 0, explicit_context = 1 };
 	
-	struct Block
+	struct MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) Block
 	{
 		Block()
 			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
@@ -1583,20 +1596,11 @@ private:
 		inline T const* operator[](index_t idx) const MOODYCAMEL_NOEXCEPT { return static_cast<T const*>(static_cast<void const*>(elements)) + static_cast<size_t>(idx & static_cast<index_t>(BLOCK_SIZE - 1)); }
 		
 	private:
-		// IMPORTANT: This must be the first member in Block, so that if T depends on the alignment of
-		// addresses returned by malloc, that alignment will be preserved. Apparently clang actually
-		// generates code that uses this assumption for AVX instructions in some cases. Ideally, we
-		// should also align Block to the alignment of T in case it's higher than malloc's 16-byte
-		// alignment, but this is hard to do in a cross-platform way. Assert for this case:
-		static_assert(std::alignment_of<T>::value <= std::alignment_of<details::max_align_t>::value, "The queue does not support super-aligned types at this time");
-		// Additionally, we need the alignment of Block itself to be a multiple of max_align_t since
-		// otherwise the appropriate padding will not be added at the end of Block in order to make
-		// arrays of Blocks all be properly aligned (not just the first one). We use a union to force
-		// this.
-		union {
-			char elements[sizeof(T) * BLOCK_SIZE];
-			details::max_align_t dummy;
-		};
+		static_assert(std::alignment_of<T>::value <= sizeof(T), "The queue does not support types with an alignment greater than their size at this time");
+		// IMPORTANT: This must be the first member in Block, so that if T depends on a specific alignment,
+		// that alignment will be preserved. Apparently clang actually generates code that uses this assumption
+		// for AVX instructions in some cases.
+		char elements[sizeof(T) * BLOCK_SIZE];
 	public:
 		Block* next;
 		std::atomic<size_t> elementsCompletelyDequeued;
@@ -1611,7 +1615,7 @@ private:
 		void* owner;
 #endif
 	};
-	static_assert(std::alignment_of<Block>::value >= std::alignment_of<details::max_align_t>::value, "Internal error: Blocks must be at least as aligned as the type they are wrapping");
+	static_assert(std::alignment_of<Block>::value >= std::alignment_of<T>::value, "Internal error: Blocks must be at least as aligned as the type they are wrapping");
 
 
 #ifdef MCDBGQ_TRACKMEM
@@ -3489,55 +3493,73 @@ private:
 	//////////////////////////////////
 	// Utility functions
 	//////////////////////////////////
-	
+
+	template<typename TAlign>
+	static inline void* aligned_malloc(size_t size)
+	{
+		if (std::alignment_of<TAlign>::value <= std::alignment_of<details::max_align_t>::value)
+			return (Traits::malloc)(size);
+		size_t alignment = std::alignment_of<TAlign>::value;
+		void* raw = (Traits::malloc)(size + alignment - 1 + sizeof(void*));
+		if (!raw)
+			return nullptr;
+		char* ptr = details::align_for<TAlign>(reinterpret_cast<char*>(raw) + sizeof(void*));
+		*(reinterpret_cast<void**>(ptr) - 1) = raw;
+		return ptr;
+	}
+
+	template<typename TAlign>
+	static inline void aligned_free(void* ptr)
+	{
+		if (std::alignment_of<TAlign>::value <= std::alignment_of<details::max_align_t>::value)
+			return (Traits::free)(ptr);
+		(Traits::free)(ptr ? *(reinterpret_cast<void**>(ptr) - 1) : nullptr);
+	}
+
 	template<typename U>
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
-		auto p = static_cast<U*>((Traits::malloc)(sizeof(U) * count));
-		if (p == nullptr) {
+		U* p = static_cast<U*>(aligned_malloc<U>(sizeof(U) * count));
+		if (p == nullptr)
 			return nullptr;
-		}
-		
-		for (size_t i = 0; i != count; ++i) {
+
+		for (size_t i = 0; i != count; ++i)
 			new (p + i) U();
-		}
 		return p;
 	}
-	
+
 	template<typename U>
 	static inline void destroy_array(U* p, size_t count)
 	{
 		if (p != nullptr) {
 			assert(count > 0);
-			for (size_t i = count; i != 0; ) {
+			for (size_t i = count; i != 0; )
 				(p + --i)->~U();
-			}
-			(Traits::free)(p);
 		}
+		aligned_free<U>(p);
 	}
-	
+
 	template<typename U>
 	static inline U* create()
 	{
-		auto p = (Traits::malloc)(sizeof(U));
+		void* p = aligned_malloc<U>(sizeof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
-	
+
 	template<typename U, typename A1>
 	static inline U* create(A1&& a1)
 	{
-		auto p = (Traits::malloc)(sizeof(U));
+		void* p = aligned_malloc<U>(sizeof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
-	
+
 	template<typename U>
 	static inline void destroy(U* p)
 	{
-		if (p != nullptr) {
+		if (p != nullptr)
 			p->~U();
-		}
-		(Traits::free)(p);
+		aligned_free<U>(p);
 	}
 
 private:

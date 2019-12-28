@@ -46,16 +46,21 @@ namespace {
 		static inline void* malloc(std::size_t size)
 		{
 			auto ptr = std::malloc(size + sizeof(tag));
-			reinterpret_cast<tag*>(ptr)->size = size;
-			usage.fetch_add(size, std::memory_order_relaxed);
-			return reinterpret_cast<char*>(ptr) + sizeof(tag);
+			if (ptr) {
+				reinterpret_cast<tag*>(ptr)->size = size;
+				usage.fetch_add(size, std::memory_order_relaxed);
+				return reinterpret_cast<char*>(ptr) + sizeof(tag);
+			}
+			return nullptr;
 		}
 		
 		static inline void free(void* ptr)
 		{
-			ptr = reinterpret_cast<char*>(ptr) - sizeof(tag);
-			auto size = reinterpret_cast<tag*>(ptr)->size;
-			usage.fetch_add(-size, std::memory_order_relaxed);
+			if (ptr) {
+				ptr = reinterpret_cast<char*>(ptr) - sizeof(tag);
+				auto size = reinterpret_cast<tag*>(ptr)->size;
+				usage.fetch_add(-size, std::memory_order_relaxed);
+			}
 			std::free(ptr);
 		}
 		
@@ -262,6 +267,37 @@ public:
 	bool throwOnAssignment;
 	bool throwOnSecondCctor;
 };
+
+struct MOODYCAMEL_ALIGNAS(8192) VeryAligned {
+	static size_t errors;
+
+	int value;
+
+	VeryAligned() MOODYCAMEL_NOEXCEPT : value(0) {
+		if (reinterpret_cast<uintptr_t>(this) % 8192 != 0)
+			++errors;
+	}
+
+	VeryAligned(int value) MOODYCAMEL_NOEXCEPT : value(value) {
+		if (reinterpret_cast<uintptr_t>(this) % 8192 != 0)
+			++errors;
+	}
+
+	VeryAligned(VeryAligned&& x) MOODYCAMEL_NOEXCEPT : value(x.value) {
+		if (reinterpret_cast<uintptr_t>(this) % 8192 != 0)
+			++errors;
+		x.value = 0;
+	}
+
+	VeryAligned& operator=(VeryAligned&& x) MOODYCAMEL_NOEXCEPT {
+		std::swap(value, x.value);
+		return *this;
+	}
+
+	VeryAligned(VeryAligned const&) MOODYCAMEL_DELETE_FUNCTION;
+	VeryAligned& operator=(VeryAligned const&) MOODYCAMEL_DELETE_FUNCTION;
+};
+size_t VeryAligned::errors = 0;
 
 
 class ConcurrentQueueTests : public TestClass<ConcurrentQueueTests>
@@ -1023,7 +1059,58 @@ public:
 		
 		ASSERT_OR_FAIL(Traits::malloc_count() == 4);
 		ASSERT_OR_FAIL(Traits::free_count() == 4);
-		
+
+		// Super-aligned
+		Traits::reset();
+		VeryAligned::errors = 0;
+		{
+			ConcurrentQueue<VeryAligned, Traits> q(7);
+			ASSERT_OR_FAIL(q.enqueue(39));
+
+			ASSERT_OR_FAIL(Traits::malloc_count() == 3);		// one for producer, one for its block index
+			ASSERT_OR_FAIL(Traits::free_count() == 0);
+			ASSERT_OR_FAIL(VeryAligned::errors == 0);
+
+			// Enqueue one item too many (force extra block allocation)
+			for (int i = 0; i != 8; ++i) {
+				ASSERT_OR_FAIL(q.enqueue(i));
+				ASSERT_OR_FAIL(VeryAligned::errors == 0);
+			}
+
+			ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+			ASSERT_OR_FAIL(Traits::free_count() == 0);
+
+			// Still room for one more...
+			ASSERT_OR_FAIL(q.enqueue(8));
+			ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+			ASSERT_OR_FAIL(Traits::free_count() == 0);
+			ASSERT_OR_FAIL(VeryAligned::errors == 0);
+
+			// No more room without further allocations
+			ASSERT_OR_FAIL(!q.try_enqueue(9));
+			ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+			ASSERT_OR_FAIL(Traits::free_count() == 0);
+			ASSERT_OR_FAIL(VeryAligned::errors == 0);
+
+			// Check items were enqueued properly
+			VeryAligned item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item.value == 39);
+			for (int i = 0; i != 9; ++i) {
+				ASSERT_OR_FAIL(q.try_dequeue(item));
+				ASSERT_OR_FAIL(item.value == i);
+				ASSERT_OR_FAIL(VeryAligned::errors == 0);
+			}
+
+			// Queue should be empty, but not freed
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+			ASSERT_OR_FAIL(Traits::free_count() == 0);
+			ASSERT_OR_FAIL(VeryAligned::errors == 0);
+		}
+
+		ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+		ASSERT_OR_FAIL(Traits::free_count() == 4);
+
 		return true;
 	}
 	
