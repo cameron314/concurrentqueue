@@ -8,7 +8,7 @@ else
 	PLATFORM_OPTS = -lrt
 endif
 
-OPTS = -pthread $(PLATFORM_OPTS) -O3 -g
+OPTS = -Wno-int-to-pointer-cast -pthread $(PLATFORM_OPTS) -O3 -g
 
 default: freelist$(EXT) spmchash$(EXT) integrated$(EXT)
 

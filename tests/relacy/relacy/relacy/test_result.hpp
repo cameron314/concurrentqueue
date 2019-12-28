@@ -76,7 +76,7 @@ inline char const* test_result_str(test_result_e r)
     case test_result_double_free: return "DOUBLE FREE";
     case test_result_memory_leak: return "MEMORY LEAK";
     case test_result_resource_leak: return "RESOURCE LEAK";
-    case test_result_unitialized_access: return "ACCESS TO UNITIALIZED VARIABLE";
+    case test_result_unitialized_access: return "ACCESS TO UNINITIALIZED VARIABLE";
     case test_result_deadlock: return "DEADLOCK";
     case test_result_livelock: return "LIVELOCK";
 

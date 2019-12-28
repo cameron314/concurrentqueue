@@ -131,7 +131,7 @@ struct set
 template<typename T, typename Y>
 struct map
 {
-    typedef std::map<T, Y, std::less<T>, raw_allocator<std::pair<T, Y> > > type;
+    typedef std::map<T, Y, std::less<T>, raw_allocator<std::pair<const T, Y> > > type;
 };
 
 typedef std::basic_string<char, std::char_traits<char>, raw_allocator<char> > string;

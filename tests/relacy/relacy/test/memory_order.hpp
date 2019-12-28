@@ -2,6 +2,36 @@
 
 #include "../relacy/relacy_std.hpp"
 
+struct coherent_read_read_test : rl::test_suite<coherent_read_read_test, 3>
+{
+    std::atomic<int> x;
+    std::atomic<int> y;
+
+    void before()
+    {
+        x($) = 0;
+        y($) = 0;
+    }
+
+    void thread(unsigned th)
+    {
+        if (0 == th)
+            x.store(1, rl::memory_order_relaxed);
+        else if (1 == th)
+        {
+            if (0 == x.load(rl::memory_order_relaxed))
+                return;
+            y.store(1, rl::memory_order_release);
+            x.load(rl::memory_order_relaxed);
+        }
+        else
+        {
+            if (0 == y.load(rl::memory_order_acquire))
+                return;
+            RL_ASSERT(1 == x.load(rl::memory_order_relaxed));
+        }
+    }
+};
 
 
 template<int index>
@@ -110,7 +140,7 @@ struct acq_rel_test : rl::test_suite<acq_rel_test, 2>
 
 
 template<int index>
-struct seq_cst_test : rl::test_suite<seq_cst_test<index>, 4, 
+struct seq_cst_test : rl::test_suite<seq_cst_test<index>, 4,
     (rl::test_result_e)((1 - index) * rl::test_result_until_condition_hit)>
 {
     std::atomic<int> x1;

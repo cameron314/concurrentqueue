@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../relacy/relacy_cli.hpp"
+#include "../../relacy/relacy_cli.hpp"
 
 using rl::nvar;
 using rl::nvolatile;

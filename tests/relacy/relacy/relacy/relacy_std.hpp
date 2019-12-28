@@ -13,13 +13,33 @@
 #   pragma once
 #endif
 
+// MOODYCAMEL BEGIN
+// Newer versions of GCC define std::memory_order and std::atomic even if their headers are not
+// explicitly included (it suffices to merely include <memory>)
+#ifdef __GNUC__
+#define memory_order std_memory_order
+#define atomic std_atomic
+#define atomic_flag std_atomic_flag
+#endif
+// MOODYCAMEL END
 
 #include "relacy.hpp"
 
+// MOODYCAMEL BEGIN
+#ifdef __GNUC__
+#undef memory_order
+#undef atomic
+#undef atomic_flag
+namespace rl {
+    using memory_order = ::rl::std_memory_order;
+    template<typename T> using atomic = ::rl::std_atomic<T>;
+}
+#endif
+// MOODYCAMEL END
 
 namespace std
 {
-    using rl::memory_order;
+    using memory_order = rl::memory_order;
     using rl::mo_relaxed;
     using rl::mo_consume;
     using rl::mo_acquire;

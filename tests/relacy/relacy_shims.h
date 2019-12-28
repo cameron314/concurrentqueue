@@ -96,7 +96,7 @@ namespace std
 		
 		bool test_and_set()
 		{
-			test_and_set(std::memory_order_seq_cst);
+			return test_and_set(std::memory_order_seq_cst);
 		}
 		
 		bool test_and_set(rl::memory_order order, rl::debug_info_param d)

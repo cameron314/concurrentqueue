@@ -114,6 +114,10 @@ public:
 
     ~thread_local_var()
     {
+        if (is_ctx() && ctx_seq_ == ctx().get_ctx_seq())
+        {
+            generic_thread_local::deinit($);
+        }
     }
 
     thread_local_proxy<T> operator () (debug_info_param info)

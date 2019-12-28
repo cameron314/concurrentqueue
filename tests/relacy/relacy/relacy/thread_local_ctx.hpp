@@ -68,8 +68,7 @@ private:
 
     virtual int         thread_local_alloc          (void (*dtor)(intptr_t))
     {
-        int index = (int)entries_.size();
-        entries_.resize(index + 1);
+        int index = find_or_make_unused_entry_index();
         entry& ent = entries_[index];
         ent.alive_ = true;
         ent.dtor_ = dtor;
@@ -112,6 +111,20 @@ private:
         entry& ent = entries_[index];
         RL_VERIFY(ent.alive_);
         return ent.value_[current_thread()];
+    }
+
+    int find_or_make_unused_entry_index()
+    {
+        int index;
+        for (index = 0; index < (int)entries_.size(); ++index)
+        {
+            if (!entries_[index].alive_)
+            {
+                return (int)index;
+            }
+        }
+        entries_.resize(index + 1);
+        return index;
     }
 };
 

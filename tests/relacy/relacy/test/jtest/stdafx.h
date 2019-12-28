@@ -1,7 +1,6 @@
 #pragma once
 
-//#define RL_JAVA_MODE
-//#define RL_MSVC_OUTPUT
+#define RL_JAVA_MODE
 
-#include "../relacy/pch.hpp"
+#include "../../relacy/pch.hpp"
 

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../relacy/relacy_java.hpp"
+#include "../../relacy/relacy_java.hpp"
 
 
 

@@ -217,7 +217,7 @@ private:
                     return (unsigned)-1; // access to unitialized var
 
                 history_t const& prev = var.history_[(index - 1) % atomic_history_size];
-                if (prev.busy_ && prev.last_seen_order_[index_] <= last_yield_)
+                if (prev.busy_ && prev.first_seen_order_[index_] <= last_yield_)
                     break;
 
                 if (mo_seq_cst == val(mo) && rec.seq_cst_)
@@ -229,11 +229,17 @@ private:
                 if (acq_rel_order >= rec.acq_rel_timestamp_)
                     break;
 
+                //  This check ensures read-read coherence, 1.10/16:
+                //  If a value computation A of an atomic object M happens before a value
+                //  computation B of M, and A takes its value from a side effect X on M,
+                //  then the value computed by B shall either be the value stored by X or
+                //  the value stored by a side effect Y on M, where Y follows X in the
+                //  modification order of M. 
                 bool stop = false;
                 for (thread_id_t i = 0; i != thread_count; ++i)
                 {
                     timestamp_t acq_rel_order2 = acq_rel_order_[i];
-                    if (acq_rel_order2 >= rec.last_seen_order_[i])
+                    if (acq_rel_order2 >= rec.first_seen_order_[i])
                     {
                         stop = true;
                         break;
@@ -273,7 +279,8 @@ private:
         RL_VERIFY(rec.busy_);
 
         own_acq_rel_order_ += 1;
-        rec.last_seen_order_[index_] = own_acq_rel_order_;
+        if ((timestamp_t)-1 == rec.first_seen_order_[index_])
+            rec.first_seen_order_[index_] = own_acq_rel_order_;
 
         bool const synch =
             (mo_acquire == mo
@@ -329,9 +336,9 @@ private:
         own_acq_rel_order_ += 1;
         rec.acq_rel_timestamp_ = own_acq_rel_order_;
 
-        foreach<thread_count>(rec.last_seen_order_, assign<(timestamp_t)-1>);
+        foreach<thread_count>(rec.first_seen_order_, assign<(timestamp_t)-1>);
 
-        rec.last_seen_order_[index_] = own_acq_rel_order_;
+        rec.first_seen_order_[index_] = own_acq_rel_order_;
 
         unsigned const prev_idx = (var.current_index_ - 1) % atomic_history_size;
         history_t& prev = var.history_[prev_idx];
@@ -369,8 +376,8 @@ private:
     {
         atomic_data_impl<thread_count>& var = 
             *static_cast<atomic_data_impl<thread_count>*>(data);
-        timestamp_t const last_seen = var.history_[var.current_index_ % atomic_history_size].last_seen_order_[index_];
-        aba = (last_seen > own_acq_rel_order_);
+        timestamp_t const first_seen = var.history_[var.current_index_ % atomic_history_size].first_seen_order_[index_];
+        aba = ((timestamp_t)-1 == first_seen);
         atomic_load<mo, true>(data);
         unsigned result = atomic_store<mo, true>(data);
 

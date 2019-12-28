@@ -237,13 +237,20 @@ inline void switch_to_fiber(fiber_t& fib, fiber_t& prv)
 #   define RL_STRINGIZE_I(text) #text
 #   define RL_STRINGIZE_A(arg) RL_STRINGIZE_I arg
 #   define RL_STDCALL __stdcall
-#   define RL_THROW_SPEC(ex)
 #else
 #   define RL_INLINE inline
 #   define RL_NOINLINE
 #   define RL_STRINGIZE_I(text) #text
 #   define RL_STRINGIZE(text) RL_STRINGIZE_I(text)
 #   define RL_STDCALL
+#endif
+
+
+#if defined(_MSC_VER)
+#   define RL_THROW_SPEC(ex)
+#elif __cplusplus >= 201103L
+#   define RL_THROW_SPEC(ex) noexcept(false)
+#else
 #   define RL_THROW_SPEC(ex) throw(ex)
 #endif
 

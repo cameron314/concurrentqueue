@@ -102,6 +102,11 @@ public:
         return *context_holder<>::instance_;
     }
 
+    static bool is_instance()
+    {
+        return context_holder<>::instance_;
+    }
+
     virtual atomic_data* atomic_ctor(void* ctx) = 0;
     virtual void atomic_dtor(atomic_data* data) = 0;
 
@@ -252,6 +257,11 @@ context* context_holder<fake>::instance_ = 0;
 inline context& ctx()
 {
     return context::instance();
+}
+
+inline bool is_ctx()
+{
+    return context::is_instance();
 }
 
 

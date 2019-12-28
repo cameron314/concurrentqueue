@@ -391,6 +391,7 @@ int main()
         &rl::simulate<test_pthread_condvar2>,
         &rl::simulate<test_pthread_sem>,
         
+        &rl::simulate<coherent_read_read_test>,
         &rl::simulate<order_relaxed_test<0> >,
         &rl::simulate<order_relaxed_test<1> >,
         &rl::simulate<order_relaxed_test<2> >,

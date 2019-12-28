@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <stdint.h>
 #include "../../relacy/relacy_std.hpp"
 
 
@@ -7,7 +8,6 @@ struct pc_region;
 struct pc_master;
 typedef pc_region pc_node;
 typedef void (pc_fp_dtor) (pc_region*);
-typedef unsigned __int64 uint64_t;
 
 struct pc_sys_anchor
 {
