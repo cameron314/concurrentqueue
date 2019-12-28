@@ -89,10 +89,10 @@ nitty-gritty details of the design][design], on my blog. Finally, the
 
 The entire queue's implementation is contained in **one header**, [`concurrentqueue.h`][concurrentqueue.h].
 Simply download and include that to use the queue. The blocking version is in a separate header,
-[`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on the first.
-The implementation makes use of certain key C++11 features, so it requires a fairly recent compiler
-(e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic` and is thus not supported).
-The algorithm implementations themselves are platform independent.
+[`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on [`concurrentqueue.h`][concurrentqueue.h] and
+[`lightweightsemaphore.h`][lightweightsemaphore.h]. The implementation makes use of certain key C++11 features,
+so it requires a fairly recent compiler (e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic`
+and is thus not supported). The algorithm implementations themselves are platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
 it from many threads at once :-)
@@ -357,16 +357,15 @@ is assigned by the queue (a poor man's move, essentially). Note that this only w
 the object contains no internal pointers. Example:
 
     struct MyObjectMover {
-        inline void operator=(MyObject&& obj)
-        {
+        inline void operator=(MyObject&& obj) {
             std::memcpy(data, &obj, sizeof(MyObject));
             
             // TODO: Cleanup obj so that when it's destructed by the queue
             // it doesn't corrupt the data of the object we just moved it into
         }
-        
+
         inline MyObject& obj() { return *reinterpret_cast<MyObject*>(data); }
-    
+
     private:
         align(alignof(MyObject)) char data[sizeof(MyObject)];
     };
@@ -380,22 +379,21 @@ constructor:
             new (data) MyObject(std::move(x));
             created = true;
         }
-    
+
         inline MyObject& obj() {
             assert(created);
             return *reinterpret_cast<MyObject*>(data);
         }
-    
+
         ~MyObjectMover() {
             if (created)
                 obj().~MyObject();
         }
-    
+
     private:
         align(alignof(MyObject)) char data[sizeof(MyObject)];
         bool created = false;
     };
-
 
 ## Samples
 

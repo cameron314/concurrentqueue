@@ -300,6 +300,10 @@ public:
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
 		REGISTER_TEST(timed_blocking_wrappers);
+
+		// Semaphore
+		REGISTER_TEST(acquire_and_signal);
+		REGISTER_TEST(try_acquire_and_signal);
 		
 		// Core algos
 		REGISTER_TEST(core_add_only_list);
@@ -4277,6 +4281,141 @@ public:
 			ASSERT_OR_FAIL(!q.wait_dequeue_timed(tok, item, 0));
 		}
 		
+		return true;
+	}
+
+	bool acquire_and_signal()
+	{
+		const unsigned TIMEOUT_US = 10 * 1000 * 1000;  // 10s
+
+		// Test resource acquisition from one other thread
+		{
+			LightweightSemaphore s;
+			s.signal(); // Single resource available
+
+			auto fnTestSingleAcquire = [&]() {
+				for (std::size_t k = 0; k < 200000; ++k) {
+					s.wait(TIMEOUT_US);
+					s.signal();
+				}
+			};
+
+			SimpleThread t1(fnTestSingleAcquire);
+			SimpleThread t2(fnTestSingleAcquire);
+
+			t1.join();
+			t2.join();
+
+			ASSERT_OR_FAIL(s.availableApprox() == 1);
+		}
+
+		// Test resource acquisition from multiple threads
+		{
+			const int THREADS = 4;
+			const std::size_t ITERATIONS = 200000;
+			SimpleThread threads[THREADS];
+			const std::size_t arrayItemsToWait[THREADS] = { 1, 2, 3, 7 };
+			LightweightSemaphore s;
+
+			for (int i = 0; i != THREADS; ++i)
+				s.signal(ITERATIONS * arrayItemsToWait[i]);
+
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i] = SimpleThread([&](int tid) {
+					for (std::size_t k = 0; k < ITERATIONS; ++k)
+						s.waitMany(arrayItemsToWait[tid], TIMEOUT_US);
+				}, i);
+			}
+			for (int i = 0; i != THREADS; ++i)
+				threads[i].join();
+
+			ASSERT_OR_FAIL(s.availableApprox() == 0);
+		}
+		{
+			const int THREADS = 5;
+			const std::size_t ITERATIONS = 100000;
+			SimpleThread threads[THREADS];
+			const std::size_t arrayItemsToWait[THREADS] = { 0, 1, 2, 3, 7 };
+			LightweightSemaphore s;
+
+			for (int i = 0; i != THREADS; ++i)
+				s.signal(ITERATIONS * arrayItemsToWait[i]);
+
+			for (int i = 0; i != THREADS; ++i) {
+				threads[i] = SimpleThread([&](int tid) {
+					if (tid == 0) {
+						for (std::size_t k = 0; k < ITERATIONS * (THREADS - 1); ++k)
+							s.wait(TIMEOUT_US);
+					}
+					else {
+						for (std::size_t k = 0; k < ITERATIONS; ++k) {
+							s.signal();
+							s.waitMany(arrayItemsToWait[tid], TIMEOUT_US);
+						}
+					}
+				}, i);
+			}
+			for (int i = 0; i != THREADS; ++i)
+				threads[i].join();
+
+			ASSERT_OR_FAIL(s.availableApprox() == 0);
+		}
+
+		LightweightSemaphore s;
+		ASSERT_OR_FAIL(s.availableApprox() == 0);
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox() == 1);
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox() == 2);
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox() == 12);
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox() == 22);
+
+		ASSERT_OR_FAIL(s.wait());
+		ASSERT_OR_FAIL(s.availableApprox() == 21);
+		ASSERT_OR_FAIL(s.wait());
+		ASSERT_OR_FAIL(s.availableApprox() == 20);
+		ASSERT_OR_FAIL(s.waitMany(10) == 10);
+		ASSERT_OR_FAIL(s.availableApprox() == 10);
+		ASSERT_OR_FAIL(s.waitMany(11) == 10);
+		ASSERT_OR_FAIL(s.availableApprox() == 0);
+
+		return true;
+	}
+
+	bool try_acquire_and_signal()
+	{
+		LightweightSemaphore s;
+
+		ASSERT_OR_FAIL(s.availableApprox() == 0);
+
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox() == 1);
+		ASSERT_OR_FAIL(s.tryWaitMany(2) == 1);
+		ASSERT_OR_FAIL(s.availableApprox() == 0);
+
+		s.signal();
+		ASSERT_OR_FAIL(s.availableApprox() == 1);
+		ASSERT_OR_FAIL(s.tryWaitMany(3) == 1);
+		ASSERT_OR_FAIL(s.availableApprox() == 0);
+
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox() == 10);
+		ASSERT_OR_FAIL(s.tryWaitMany(100) == 10);
+		ASSERT_OR_FAIL(s.availableApprox() == 0);
+
+		s.signal(10);
+		ASSERT_OR_FAIL(s.availableApprox() == 10);
+		ASSERT_OR_FAIL(s.tryWaitMany(5) == 5);
+		ASSERT_OR_FAIL(s.availableApprox() == 5);
+
+		ASSERT_OR_FAIL(s.tryWait());
+		ASSERT_OR_FAIL(s.availableApprox() == 4);
+
+		ASSERT_OR_FAIL(s.tryWait());
+		ASSERT_OR_FAIL(s.availableApprox() == 3);
+
 		return true;
 	}
 	
