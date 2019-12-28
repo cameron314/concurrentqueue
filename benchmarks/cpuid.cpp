@@ -192,6 +192,9 @@ namespace moodycamel
 				break;
 			}
 		}
+		// Strip trailing spaces if any
+		for (char* s = buf + std::strlen(buf); s != buf && s[-1] == ' '; --s)
+			s[-1] = '\0';
 		char* str = buf + std::strlen(buf);
 		if (cpus > 1) {
 			// Assume identical CPUs
