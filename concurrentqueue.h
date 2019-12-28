@@ -214,6 +214,17 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
+// VS2013 doesn't support alignas or alignof
+#if defined(_MSC_VER) && _MSC_VER <= 1800
+#define MOODYCAMEL_ALIGNAS(alignment) __declspec(align(alignment))
+#define MOODYCAMEL_ALIGNOF(obj) __alignof(obj)
+#else
+#define MOODYCAMEL_ALIGNAS(alignment) alignas(alignment)
+#define MOODYCAMEL_ALIGNOF(obj) alignof(obj)
+#endif
+
+
+
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
 #if defined(__GNUC__)
@@ -337,6 +348,19 @@ struct ConcurrentQueueDefaultTraits
 	static inline void* malloc(size_t size) { return rl::rl_malloc(size, $); }
 	static inline void free(void* ptr) { return rl::rl_free(ptr, $); }
 #endif
+	static inline void* aligned_malloc(size_t size, size_t alignment){
+		void* res = nullptr;
+		void* ptr = malloc(size + alignment);
+		if(ptr != nullptr) {
+			res = reinterpret_cast<void*>((reinterpret_cast<size_t>(ptr) & ~(size_t(alignment - 1))) + alignment);
+			*(reinterpret_cast<void**>(res) - 1) = ptr;
+		}
+		return res;
+	}
+	static inline void aligned_free(void* ptr){
+		if(ptr != nullptr)
+			free(*(reinterpret_cast<void**>(ptr) - 1));
+	}
 };
 
 
@@ -1472,7 +1496,7 @@ private:
 	
 	enum InnerQueueContext { implicit_context = 0, explicit_context = 1 };
 	
-	struct Block
+	struct MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) Block
 	{
 		Block()
 			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
@@ -1588,7 +1612,7 @@ private:
 		// generates code that uses this assumption for AVX instructions in some cases. Ideally, we
 		// should also align Block to the alignment of T in case it's higher than malloc's 16-byte
 		// alignment, but this is hard to do in a cross-platform way. Assert for this case:
-		static_assert(std::alignment_of<T>::value <= std::alignment_of<details::max_align_t>::value, "The queue does not support super-aligned types at this time");
+		static_assert(std::alignment_of<T>::value <= sizeof(T), "The queue does not support types with an alignment greater than their size at this time.");
 		// Additionally, we need the alignment of Block itself to be a multiple of max_align_t since
 		// otherwise the appropriate padding will not be added at the end of Block in order to make
 		// arrays of Blocks all be properly aligned (not just the first one). We use a union to force
@@ -3489,8 +3513,10 @@ private:
 	//////////////////////////////////
 	// Utility functions
 	//////////////////////////////////
-	
-	template<typename U>
+
+	// Fundamental alignment
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create_array(size_t count)
 	{
 		assert(count > 0);
@@ -3498,14 +3524,14 @@ private:
 		if (p == nullptr) {
 			return nullptr;
 		}
-		
+
 		for (size_t i = 0; i != count; ++i) {
 			new (p + i) U();
 		}
 		return p;
 	}
-	
-	template<typename U>
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline void destroy_array(U* p, size_t count)
 	{
 		if (p != nullptr) {
@@ -3516,28 +3542,80 @@ private:
 			(Traits::free)(p);
 		}
 	}
-	
-	template<typename U>
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create()
 	{
 		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U : nullptr;
 	}
-	
-	template<typename U, typename A1>
+
+	template<typename U, typename A1, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline U* create(A1&& a1)
 	{
 		auto p = (Traits::malloc)(sizeof(U));
 		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
 	}
-	
-	template<typename U>
+
+	template<typename U, typename std::enable_if<!(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
 	static inline void destroy(U* p)
 	{
 		if (p != nullptr) {
 			p->~U();
 		}
 		(Traits::free)(p);
+	}
+
+	// Extended alignment
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
+	static inline U* create_array(size_t count)
+	{
+		assert(count > 0);
+		auto p = static_cast<U*>((Traits::aligned_malloc)(sizeof(U) * count, alignof(U)));
+		if (p == nullptr) {
+			return nullptr;
+		}
+
+		for (size_t i = 0; i != count; ++i) {
+			new (p + i) U();
+		}
+		return p;
+	}
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
+	static inline void destroy_array(U* p, size_t count)
+	{
+		if (p != nullptr) {
+			assert(count > 0);
+			for (size_t i = count; i != 0; ) {
+				(p + --i)->~U();
+			}
+			(Traits::aligned_free)(p);
+		}
+	}
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
+	static inline U* create()
+	{
+		auto p = (Traits::aligned_malloc)(sizeof(U), alignof(U));
+		return p != nullptr ? new (p) U : nullptr;
+	}
+
+	template<typename U, typename A1, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
+	static inline U* create(A1&& a1)
+	{
+		auto p = (Traits::aligned_malloc)(sizeof(U), alignof(U));
+		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
+	}
+
+	template<typename U, typename std::enable_if<(alignof(U)>alignof(details::max_align_t)), int>::type = 0>
+	static inline void destroy(U* p)
+	{
+		if (p != nullptr) {
+			p->~U();
+		}
+		(Traits::aligned_free)(p);
 	}
 
 private:
