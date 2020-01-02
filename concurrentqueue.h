@@ -1597,9 +1597,6 @@ private:
 		
 	private:
 		static_assert(std::alignment_of<T>::value <= sizeof(T), "The queue does not support types with an alignment greater than their size at this time");
-		// IMPORTANT: This must be the first member in Block, so that if T depends on a specific alignment,
-		// that alignment will be preserved. Apparently clang actually generates code that uses this assumption
-		// for AVX instructions in some cases.
 		MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) char elements[sizeof(T) * BLOCK_SIZE];
 	public:
 		Block* next;

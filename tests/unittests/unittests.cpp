@@ -268,23 +268,23 @@ public:
 	bool throwOnSecondCctor;
 };
 
-struct MOODYCAMEL_ALIGNAS(8192) VeryAligned {
+struct MOODYCAMEL_ALIGNAS(128) VeryAligned {
 	static size_t errors;
 
 	int value;
 
 	VeryAligned() MOODYCAMEL_NOEXCEPT : value(0) {
-		if (reinterpret_cast<uintptr_t>(this) % 8192 != 0)
+		if (reinterpret_cast<uintptr_t>(this) % 128 != 0)
 			++errors;
 	}
 
 	VeryAligned(int value) MOODYCAMEL_NOEXCEPT : value(value) {
-		if (reinterpret_cast<uintptr_t>(this) % 8192 != 0)
+		if (reinterpret_cast<uintptr_t>(this) % 128 != 0)
 			++errors;
 	}
 
 	VeryAligned(VeryAligned&& x) MOODYCAMEL_NOEXCEPT : value(x.value) {
-		if (reinterpret_cast<uintptr_t>(this) % 8192 != 0)
+		if (reinterpret_cast<uintptr_t>(this) % 128 != 0)
 			++errors;
 		x.value = 0;
 	}
