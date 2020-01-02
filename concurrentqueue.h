@@ -1485,7 +1485,7 @@ private:
 	
 	enum InnerQueueContext { implicit_context = 0, explicit_context = 1 };
 	
-	struct MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) Block
+	struct Block
 	{
 		Block()
 			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
@@ -1600,7 +1600,7 @@ private:
 		// IMPORTANT: This must be the first member in Block, so that if T depends on a specific alignment,
 		// that alignment will be preserved. Apparently clang actually generates code that uses this assumption
 		// for AVX instructions in some cases.
-		char elements[sizeof(T) * BLOCK_SIZE];
+		MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) char elements[sizeof(T) * BLOCK_SIZE];
 	public:
 		Block* next;
 		std::atomic<size_t> elementsCompletelyDequeued;
