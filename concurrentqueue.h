@@ -3039,7 +3039,7 @@ private:
 			return create<Block>();
 		}
 		else {
-		return nullptr;
+			return nullptr;
 		}
 	}
 	
@@ -3269,52 +3269,56 @@ private:
 	
 	inline void populate_initial_implicit_producer_hash()
 	{
-		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return;
-		else {
-		implicitProducerHashCount.store(0, std::memory_order_relaxed);
-		auto hash = &initialImplicitProducerHash;
-		hash->capacity = INITIAL_IMPLICIT_PRODUCER_HASH_SIZE;
-		hash->entries = &initialImplicitProducerHashEntries[0];
-		for (size_t i = 0; i != INITIAL_IMPLICIT_PRODUCER_HASH_SIZE; ++i) {
-			initialImplicitProducerHashEntries[i].key.store(details::invalid_thread_id, std::memory_order_relaxed);
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) {
+			return;
 		}
-		hash->prev = nullptr;
-		implicitProducerHash.store(hash, std::memory_order_relaxed);
+		else {
+			implicitProducerHashCount.store(0, std::memory_order_relaxed);
+			auto hash = &initialImplicitProducerHash;
+			hash->capacity = INITIAL_IMPLICIT_PRODUCER_HASH_SIZE;
+			hash->entries = &initialImplicitProducerHashEntries[0];
+			for (size_t i = 0; i != INITIAL_IMPLICIT_PRODUCER_HASH_SIZE; ++i) {
+				initialImplicitProducerHashEntries[i].key.store(details::invalid_thread_id, std::memory_order_relaxed);
+			}
+			hash->prev = nullptr;
+			implicitProducerHash.store(hash, std::memory_order_relaxed);
 		}
 	}
 	
 	void swap_implicit_producer_hashes(ConcurrentQueue& other)
 	{
-		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return;
-		else {
-		// Swap (assumes our implicit producer hash is initialized)
-		initialImplicitProducerHashEntries.swap(other.initialImplicitProducerHashEntries);
-		initialImplicitProducerHash.entries = &initialImplicitProducerHashEntries[0];
-		other.initialImplicitProducerHash.entries = &other.initialImplicitProducerHashEntries[0];
-		
-		details::swap_relaxed(implicitProducerHashCount, other.implicitProducerHashCount);
-		
-		details::swap_relaxed(implicitProducerHash, other.implicitProducerHash);
-		if (implicitProducerHash.load(std::memory_order_relaxed) == &other.initialImplicitProducerHash) {
-			implicitProducerHash.store(&initialImplicitProducerHash, std::memory_order_relaxed);
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) {
+			return;
 		}
 		else {
-			ImplicitProducerHash* hash;
-			for (hash = implicitProducerHash.load(std::memory_order_relaxed); hash->prev != &other.initialImplicitProducerHash; hash = hash->prev) {
-				continue;
+			// Swap (assumes our implicit producer hash is initialized)
+			initialImplicitProducerHashEntries.swap(other.initialImplicitProducerHashEntries);
+			initialImplicitProducerHash.entries = &initialImplicitProducerHashEntries[0];
+			other.initialImplicitProducerHash.entries = &other.initialImplicitProducerHashEntries[0];
+			
+			details::swap_relaxed(implicitProducerHashCount, other.implicitProducerHashCount);
+			
+			details::swap_relaxed(implicitProducerHash, other.implicitProducerHash);
+			if (implicitProducerHash.load(std::memory_order_relaxed) == &other.initialImplicitProducerHash) {
+				implicitProducerHash.store(&initialImplicitProducerHash, std::memory_order_relaxed);
 			}
-			hash->prev = &initialImplicitProducerHash;
-		}
-		if (other.implicitProducerHash.load(std::memory_order_relaxed) == &initialImplicitProducerHash) {
-			other.implicitProducerHash.store(&other.initialImplicitProducerHash, std::memory_order_relaxed);
-		}
-		else {
-			ImplicitProducerHash* hash;
-			for (hash = other.implicitProducerHash.load(std::memory_order_relaxed); hash->prev != &initialImplicitProducerHash; hash = hash->prev) {
-				continue;
+			else {
+				ImplicitProducerHash* hash;
+				for (hash = implicitProducerHash.load(std::memory_order_relaxed); hash->prev != &other.initialImplicitProducerHash; hash = hash->prev) {
+					continue;
+				}
+				hash->prev = &initialImplicitProducerHash;
 			}
-			hash->prev = &other.initialImplicitProducerHash;
-		}
+			if (other.implicitProducerHash.load(std::memory_order_relaxed) == &initialImplicitProducerHash) {
+				other.implicitProducerHash.store(&other.initialImplicitProducerHash, std::memory_order_relaxed);
+			}
+			else {
+				ImplicitProducerHash* hash;
+				for (hash = other.implicitProducerHash.load(std::memory_order_relaxed); hash->prev != &initialImplicitProducerHash; hash = hash->prev) {
+					continue;
+				}
+				hash->prev = &other.initialImplicitProducerHash;
+			}
 		}
 	}
 	
