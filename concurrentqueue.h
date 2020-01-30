@@ -150,6 +150,17 @@ namespace moodycamel { namespace details {
 } }
 #endif
 
+// Constexpr if
+#ifndef MOODYCAMEL_CONSTEXPR_IF
+#if (defined(_MSC_VER) && defined(_HAS_CXX17) && _HAS_CXX17) || __cplusplus > 201402L
+#define MOODYCAMEL_CONSTEXPR_IF if constexpr
+#define MOODYCAMEL_MAYBE_UNUSED [[maybe_unused]]
+#else
+#define MOODYCAMEL_CONSTEXPR_IF if
+#define MOODYCAMEL_MAYBE_UNUSED
+#endif
+#endif
+
 // Exceptions
 #ifndef MOODYCAMEL_EXCEPTIONS_ENABLED
 #if (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
@@ -162,8 +173,8 @@ namespace moodycamel { namespace details {
 #define MOODYCAMEL_RETHROW throw
 #define MOODYCAMEL_THROW(expr) throw (expr)
 #else
-#define MOODYCAMEL_TRY if (true)
-#define MOODYCAMEL_CATCH(...) else if (false)
+#define MOODYCAMEL_TRY MOODYCAMEL_CONSTEXPR_IF (true)
+#define MOODYCAMEL_CATCH(...) else MOODYCAMEL_CONSTEXPR_IF (false)
 #define MOODYCAMEL_RETHROW
 #define MOODYCAMEL_THROW(expr)
 #endif
@@ -798,7 +809,7 @@ public:
 		}
 		
 		// Destroy implicit producer hash tables
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE != 0) {
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE != 0) {
 			auto hash = implicitProducerHash.load(std::memory_order_relaxed);
 			while (hash != nullptr) {
 				auto prev = hash->prev;
@@ -923,8 +934,8 @@ public:
 	// Thread-safe.
 	inline bool enqueue(T const& item)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue<CanAlloc>(item);
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
+		else return inner_enqueue<CanAlloc>(item);
 	}
 	
 	// Enqueues a single item (by moving it, if possible).
@@ -934,8 +945,8 @@ public:
 	// Thread-safe.
 	inline bool enqueue(T&& item)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue<CanAlloc>(std::move(item));
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
+		else return inner_enqueue<CanAlloc>(std::move(item));
 	}
 	
 	// Enqueues a single item (by copying it) using an explicit producer token.
@@ -965,8 +976,8 @@ public:
 	template<typename It>
 	bool enqueue_bulk(It itemFirst, size_t count)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue_bulk<CanAlloc>(itemFirst, count);
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
+		else return inner_enqueue_bulk<CanAlloc>(itemFirst, count);
 	}
 	
 	// Enqueues several items using an explicit producer token.
@@ -988,8 +999,8 @@ public:
 	// Thread-safe.
 	inline bool try_enqueue(T const& item)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue<CannotAlloc>(item);
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
+		else return inner_enqueue<CannotAlloc>(item);
 	}
 	
 	// Enqueues a single item (by moving it, if possible).
@@ -999,8 +1010,8 @@ public:
 	// Thread-safe.
 	inline bool try_enqueue(T&& item)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue<CannotAlloc>(std::move(item));
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
+		else return inner_enqueue<CannotAlloc>(std::move(item));
 	}
 	
 	// Enqueues a single item (by copying it) using an explicit producer token.
@@ -1029,8 +1040,8 @@ public:
 	template<typename It>
 	bool try_enqueue_bulk(It itemFirst, size_t count)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
-		return inner_enqueue_bulk<CannotAlloc>(itemFirst, count);
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return false;
+		else return inner_enqueue_bulk<CannotAlloc>(itemFirst, count);
 	}
 	
 	// Enqueues several items using an explicit producer token.
@@ -1498,7 +1509,7 @@ private:
 		template<InnerQueueContext context>
 		inline bool is_empty() const
 		{
-			if (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
+			MOODYCAMEL_CONSTEXPR_IF (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
 				// Check flags
 				for (size_t i = 0; i < BLOCK_SIZE; ++i) {
 					if (!emptyFlags[i].load(std::memory_order_relaxed)) {
@@ -1523,9 +1534,9 @@ private:
 		
 		// Returns true if the block is now empty (does not apply in explicit context)
 		template<InnerQueueContext context>
-		inline bool set_empty(index_t i)
+		inline bool set_empty(MOODYCAMEL_MAYBE_UNUSED index_t i)
 		{
-			if (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
+			MOODYCAMEL_CONSTEXPR_IF (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
 				// Set flag
 				assert(!emptyFlags[BLOCK_SIZE - 1 - static_cast<size_t>(i & static_cast<index_t>(BLOCK_SIZE - 1))].load(std::memory_order_relaxed));
 				emptyFlags[BLOCK_SIZE - 1 - static_cast<size_t>(i & static_cast<index_t>(BLOCK_SIZE - 1))].store(true, std::memory_order_release);
@@ -1542,9 +1553,9 @@ private:
 		// Sets multiple contiguous item statuses to 'empty' (assumes no wrapping and count > 0).
 		// Returns true if the block is now empty (does not apply in explicit context).
 		template<InnerQueueContext context>
-		inline bool set_many_empty(index_t i, size_t count)
+		inline bool set_many_empty(MOODYCAMEL_MAYBE_UNUSED index_t i, size_t count)
 		{
-			if (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
+			MOODYCAMEL_CONSTEXPR_IF (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
 				// Set flags
 				std::atomic_thread_fence(std::memory_order_release);
 				i = BLOCK_SIZE - 1 - static_cast<size_t>(i & static_cast<index_t>(BLOCK_SIZE - 1)) - count + 1;
@@ -1565,7 +1576,7 @@ private:
 		template<InnerQueueContext context>
 		inline void set_all_empty()
 		{
-			if (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
+			MOODYCAMEL_CONSTEXPR_IF (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
 				// Set all flags
 				for (size_t i = 0; i != BLOCK_SIZE; ++i) {
 					emptyFlags[i].store(true, std::memory_order_relaxed);
@@ -1580,7 +1591,7 @@ private:
 		template<InnerQueueContext context>
 		inline void reset_empty()
 		{
-			if (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
+			MOODYCAMEL_CONSTEXPR_IF (context == explicit_context && BLOCK_SIZE <= EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD) {
 				// Reset flags
 				for (size_t i = 0; i != BLOCK_SIZE; ++i) {
 					emptyFlags[i].store(false, std::memory_order_relaxed);
@@ -1819,7 +1830,10 @@ private:
 						// to allocate a new index. Note pr_blockIndexRaw can only be nullptr if
 						// the initial allocation failed in the constructor.
 						
-						if (allocMode == CannotAlloc || !new_block_index(pr_blockIndexSlotsUsed)) {
+						MOODYCAMEL_CONSTEXPR_IF (allocMode == CannotAlloc) {
+							return false;
+						}
+						else if (!new_block_index(pr_blockIndexSlotsUsed)) {
 							return false;
 						}
 					}
@@ -2023,7 +2037,14 @@ private:
 					assert(!details::circular_less_than<index_t>(currentTailIndex, head));
 					bool full = !details::circular_less_than<index_t>(head, currentTailIndex + BLOCK_SIZE) || (MAX_SUBQUEUE_SIZE != details::const_numeric_max<size_t>::value && (MAX_SUBQUEUE_SIZE == 0 || MAX_SUBQUEUE_SIZE - BLOCK_SIZE < currentTailIndex - head));
 					if (pr_blockIndexRaw == nullptr || pr_blockIndexSlotsUsed == pr_blockIndexSize || full) {
-						if (allocMode == CannotAlloc || full || !new_block_index(originalBlockIndexSlotsUsed)) {
+						MOODYCAMEL_CONSTEXPR_IF (allocMode == CannotAlloc) {
+							// Failed to allocate, undo changes (but keep injected blocks)
+							pr_blockIndexFront = originalBlockIndexFront;
+							pr_blockIndexSlotsUsed = originalBlockIndexSlotsUsed;
+							this->tailBlock = startBlock == nullptr ? firstAllocatedBlock : startBlock;
+							return false;
+						}
+						else if (full || !new_block_index(originalBlockIndexSlotsUsed)) {
 							// Failed to allocate, undo changes (but keep injected blocks)
 							pr_blockIndexFront = originalBlockIndexFront;
 							pr_blockIndexSlotsUsed = originalBlockIndexSlotsUsed;
@@ -2831,7 +2852,10 @@ private:
 			}
 			
 			// No room in the old block index, try to allocate another one!
-			if (allocMode == CannotAlloc || !new_block_index()) {
+			MOODYCAMEL_CONSTEXPR_IF (allocMode == CannotAlloc) {
+				return false;
+			}
+			else if (!new_block_index()) {
 				return false;
 			}
 			localBlockIndex = blockIndex.load(std::memory_order_relaxed);
@@ -3011,11 +3035,12 @@ private:
 			return block;
 		}
 		
-		if (canAlloc == CanAlloc) {
+		MOODYCAMEL_CONSTEXPR_IF (canAlloc == CanAlloc) {
 			return create<Block>();
 		}
-		
+		else {
 		return nullptr;
+		}
 	}
 	
 
@@ -3244,8 +3269,8 @@ private:
 	
 	inline void populate_initial_implicit_producer_hash()
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return;
-		
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return;
+		else {
 		implicitProducerHashCount.store(0, std::memory_order_relaxed);
 		auto hash = &initialImplicitProducerHash;
 		hash->capacity = INITIAL_IMPLICIT_PRODUCER_HASH_SIZE;
@@ -3255,12 +3280,13 @@ private:
 		}
 		hash->prev = nullptr;
 		implicitProducerHash.store(hash, std::memory_order_relaxed);
+		}
 	}
 	
 	void swap_implicit_producer_hashes(ConcurrentQueue& other)
 	{
-		if (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return;
-		
+		MOODYCAMEL_CONSTEXPR_IF (INITIAL_IMPLICIT_PRODUCER_HASH_SIZE == 0) return;
+		else {
 		// Swap (assumes our implicit producer hash is initialized)
 		initialImplicitProducerHashEntries.swap(other.initialImplicitProducerHashEntries);
 		initialImplicitProducerHash.entries = &initialImplicitProducerHashEntries[0];
@@ -3288,6 +3314,7 @@ private:
 				continue;
 			}
 			hash->prev = &other.initialImplicitProducerHash;
+		}
 		}
 	}
 	
