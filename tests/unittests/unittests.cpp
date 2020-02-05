@@ -268,23 +268,29 @@ public:
 	bool throwOnSecondCctor;
 };
 
-struct MOODYCAMEL_ALIGNAS(128) VeryAligned {
+#ifdef __arm__
+#define SUPER_ALIGNMENT 64
+#else
+#define SUPER_ALIGNMENT 128
+#endif
+
+struct MOODYCAMEL_ALIGNAS(SUPER_ALIGNMENT) VeryAligned {
 	static size_t errors;
 
 	int value;
 
 	VeryAligned() MOODYCAMEL_NOEXCEPT : value(0) {
-		if (reinterpret_cast<uintptr_t>(this) % 128 != 0)
+		if (reinterpret_cast<uintptr_t>(this) % SUPER_ALIGNMENT != 0)
 			++errors;
 	}
 
 	VeryAligned(int value) MOODYCAMEL_NOEXCEPT : value(value) {
-		if (reinterpret_cast<uintptr_t>(this) % 128 != 0)
+		if (reinterpret_cast<uintptr_t>(this) % SUPER_ALIGNMENT != 0)
 			++errors;
 	}
 
 	VeryAligned(VeryAligned&& x) MOODYCAMEL_NOEXCEPT : value(x.value) {
-		if (reinterpret_cast<uintptr_t>(this) % 128 != 0)
+		if (reinterpret_cast<uintptr_t>(this) % SUPER_ALIGNMENT != 0)
 			++errors;
 		x.value = 0;
 	}
@@ -3621,8 +3627,10 @@ public:
 		// is_lock_free()
 		{
 			bool lockFree = ConcurrentQueue<Foo, Traits>::is_lock_free();
-#if defined(__amd64__) || defined(_M_X64) || defined(__x86_64__) || defined(_M_IX86) || defined(__i386__) || defined(_M_PPC) || defined(__powerpc__)
+#if defined(__amd64__) || defined(_M_X64) || defined(__x86_64__) || defined(_M_IX86) || defined(__i386__) || defined(_M_PPC) || defined(__powerpc__) || defined(__arm__)
 			ASSERT_OR_FAIL(lockFree);
+#else
+			(void)lockFree;
 #endif
 		}
 		
