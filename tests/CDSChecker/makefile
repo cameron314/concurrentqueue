@@ -10,5 +10,5 @@ CDSChecker:
 	$(MAKE) -C model-checker
 
 run: enqueue_dequeue_one.o enqueue_dequeue_many.o
-	cd model-checker && ./run.sh -m 2 -f 10 ../enqueue_dequeue_one.o > ../enqueue_dequeue_one.log
-	cd model-checker && ./run.sh -m 2 -f 10 ../enqueue_dequeue_many.o > ../enqueue_dequeue_many.log
+	cd model-checker && ./run.sh ../enqueue_dequeue_one.o > ../enqueue_dequeue_one.log
+	cd model-checker && ./run.sh ../enqueue_dequeue_many.o > ../enqueue_dequeue_many.log

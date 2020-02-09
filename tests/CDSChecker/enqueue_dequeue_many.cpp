@@ -5,30 +5,35 @@
 #include "model-checker/include/threads.h"
 #include "corealgo.h"
 
-void thread_main(void* param)
+void consumer(void* param)
 {
 	int id = *(int*)param;
 	int& dequeueCount = *(int*)param;
 	dequeueCount = 0;
 	
-	int last[4] = { 0 };
-	
-	enqueue((id << 24) | 1);
-	enqueue((id << 24) | 2);
+	int last = 0;
 	
 	int element;
 	bool success = try_dequeue(element);
 	if (success) {
-		MODEL_ASSERT((element & 0xFFFFFF) > last[element >> 24]);
-		last[element >> 24] = element & 0xFFFFFF;
+		MODEL_ASSERT(element > last);
+		last = element;
 		++dequeueCount;
 	}
 	success = try_dequeue(element);
 	if (success) {
-		MODEL_ASSERT((element & 0xFFFFFF) > last[element >> 24]);
-		last[element >> 24] = element & 0xFFFFFF;
+		MODEL_ASSERT(element > last);
+		last = element;
 		++dequeueCount;
 	}
+}
+
+void producer(void* param)
+{
+	for (int i = 1; i <= 8; ++i)
+		enqueue(i);
+
+	consumer(param);
 }
 
 int user_main(int, char**)
@@ -41,10 +46,10 @@ int user_main(int, char**)
 	
 	thrd_t a, b, c, d;
 	
-	thrd_create(&a, &thread_main, &w);
-	thrd_create(&b, &thread_main, &x);
-	thrd_create(&c, &thread_main, &y);
-	thrd_create(&d, &thread_main, &z);
+	thrd_create(&a, &producer, &w);
+	thrd_create(&b, &consumer, &x);
+	thrd_create(&c, &consumer, &y);
+	thrd_create(&d, &consumer, &z);
 	
 	thrd_join(a);
 	thrd_join(b);

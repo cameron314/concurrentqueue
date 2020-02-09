@@ -82,16 +82,15 @@ static bool try_dequeue(int& element)
 		// Note that we reload tail here in case it changed; it will be the same value as before or greater, since
 		// this load is sequenced after (happens after) the earlier load above. This is supported by read-read
 		// coherance (as defined in the standard), explained here: http://en.cppreference.com/w/cpp/atomic/memory_order
-		auto newTail = tailIndex.load(std::memory_order_relaxed);
+		auto newTail = tailIndex.load(std::memory_order_acquire);
 		MODEL_ASSERT(newTail >= tail);
 		tail = newTail;
 		if (circular_less_than<index_t>(myDequeueCount - overcommit, tail)) {
 			// Guaranteed to be at least one element to dequeue!
 			
 			// Get the index. Note that since there's guaranteed to be at least one element, this
-			// will never exceed tail.
-			auto index = headIndex.fetch_add(1, std::memory_order_relaxed);
-			MODEL_ASSERT(index <= tail);
+			// will never exceed the true value of tail (but may exceed the value we read above).
+			auto index = headIndex.fetch_add(1, std::memory_order_acq_rel);
 			
 			// Dequeue
 			element = load_32(&block[index & (BLOCK_SIZE - 1)]);
