@@ -28,8 +28,8 @@ void operator delete(void* ptr, MakeSureCustomNewCanPeacefullyCoexist* x);
 #include "minitest.h"
 #include "../common/simplethread.h"
 #include "../common/systemtime.h"
-#include "../../concurrentqueue.h"
-#include "../../blockingconcurrentqueue.h"
+#include "concurrentqueue/concurrentqueue.h"
+#include "concurrentqueue/blockingconcurrentqueue.h"
 
 namespace {
 	struct tracking_allocator
