@@ -225,17 +225,31 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
+namespace moodycamel { namespace details {
 #ifndef MOODYCAMEL_ALIGNAS
-// VS2013 doesn't support alignas or alignof
+// VS2013 doesn't support alignas or alignof, and align() requires a constant literal
 #if defined(_MSC_VER) && _MSC_VER <= 1800
 #define MOODYCAMEL_ALIGNAS(alignment) __declspec(align(alignment))
 #define MOODYCAMEL_ALIGNOF(obj) __alignof(obj)
+#define MOODYCAMEL_ALIGNED_TYPE_LIKE(T, obj) typename details::Vs2013Aligned<std::alignment_of<obj>::value, T>::type
+	template<int Align, typename T> struct Vs2013Aligned { };  // default, unsupported alignment
+	template<typename T> struct Vs2013Aligned<1, T> { typedef __declspec(align(1)) T type; };
+	template<typename T> struct Vs2013Aligned<2, T> { typedef __declspec(align(2)) T type; };
+	template<typename T> struct Vs2013Aligned<4, T> { typedef __declspec(align(4)) T type; };
+	template<typename T> struct Vs2013Aligned<8, T> { typedef __declspec(align(8)) T type; };
+	template<typename T> struct Vs2013Aligned<16, T> { typedef __declspec(align(16)) T type; };
+	template<typename T> struct Vs2013Aligned<32, T> { typedef __declspec(align(32)) T type; };
+	template<typename T> struct Vs2013Aligned<64, T> { typedef __declspec(align(64)) T type; };
+	template<typename T> struct Vs2013Aligned<128, T> { typedef __declspec(align(128)) T type; };
+	template<typename T> struct Vs2013Aligned<256, T> { typedef __declspec(align(256)) T type; };
 #else
+	template<typename T> struct identity { typedef T type; };
 #define MOODYCAMEL_ALIGNAS(alignment) alignas(alignment)
 #define MOODYCAMEL_ALIGNOF(obj) alignof(obj)
+#define MOODYCAMEL_ALIGNED_TYPE_LIKE(T, obj) alignas(alignof(obj)) typename details::identity<T>::type
 #endif
 #endif
-
+} }
 
 
 // Compiler-specific likely/unlikely hints
@@ -1608,7 +1622,7 @@ private:
 		
 	private:
 		static_assert(std::alignment_of<T>::value <= sizeof(T), "The queue does not support types with an alignment greater than their size at this time");
-		MOODYCAMEL_ALIGNAS(MOODYCAMEL_ALIGNOF(T)) char elements[sizeof(T) * BLOCK_SIZE];
+		MOODYCAMEL_ALIGNED_TYPE_LIKE(char[sizeof(T) * BLOCK_SIZE], T) elements;
 	public:
 		Block* next;
 		std::atomic<size_t> elementsCompletelyDequeued;
