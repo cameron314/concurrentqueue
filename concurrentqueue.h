@@ -252,6 +252,13 @@ namespace moodycamel { namespace details {
 } }
 
 
+
+#if defined(__has_feature) && __has_feature(thread_sanitizer)
+#define MOODYCAMEL_NO_TSAN __attribute__((no_sanitize("thread")))
+#else
+#define MOODYCAMEL_NO_TSAN
+#endif // TSAN
+
 // Compiler-specific likely/unlikely hints
 namespace moodycamel { namespace details {
 #if defined(__GNUC__)
@@ -2012,7 +2019,7 @@ private:
 		}
 		
 		template<AllocationMode allocMode, typename It>
-		bool enqueue_bulk(It itemFirst, size_t count)
+		bool MOODYCAMEL_NO_TSAN enqueue_bulk(It itemFirst, size_t count)
 		{
 			// First, we need to make sure we have enough room to enqueue all of the elements;
 			// this means pre-allocating blocks and putting them in the block index (but only if
