@@ -256,7 +256,7 @@ namespace moodycamel { namespace details {
 // we can apply per-function compile-time suppression.
 // See https://clang.llvm.org/docs/ThreadSanitizer.html#has-feature-thread-sanitizer
 #define MOODYCAMEL_NO_TSAN
-#if defined(__hasi_feature)
+#if defined(__has_feature)
  #if __has_feature(thread_sanitizer)
   #undef MOODYCAMEL_NO_TSAN
   #define MOODYCAMEL_NO_TSAN __attribute__((no_sanitize("thread")))
