@@ -1,8 +1,9 @@
 // Provides an efficient blocking version of moodycamel::ConcurrentQueue.
-// ©2015-2016 Cameron Desrochers. Distributed under the terms of the simplified
+// ©2015-2020 Cameron Desrochers. Distributed under the terms of the simplified
 // BSD license, available at the top of concurrentqueue.h.
+// Also dual-licensed under the Boost Software License (see LICENSE.md)
 // Uses Jeff Preshing's semaphore implementation (under the terms of its
-// separate zlib license, embedded below).
+// separate zlib license, see lightweightsemaphore.h).
 
 #pragma once
 

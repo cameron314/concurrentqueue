@@ -5,7 +5,7 @@
 //    http://moodycamel.com/blog/2014/detailed-design-of-a-lock-free-queue
 
 // Simplified BSD license:
-// Copyright (c) 2013-2016, Cameron Desrochers.
+// Copyright (c) 2013-2020, Cameron Desrochers.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -27,6 +27,7 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Also dual-licensed under the Boost Software License (see LICENSE.md)
 
 #pragma once
 
