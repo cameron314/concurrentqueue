@@ -56,7 +56,7 @@ public:
 	// includes making the memory effects of construction visible, possibly with a
 	// memory barrier).
 	explicit BlockingConcurrentQueue(size_t capacity = 6 * BLOCK_SIZE)
-		: inner(capacity), sema(create<LightweightSemaphore>(), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
+		: inner(capacity), sema(create<LightweightSemaphore>(0, Traits::MAX_SEMA_SPINS), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
 	{
 		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
@@ -65,7 +65,7 @@ public:
 	}
 	
 	BlockingConcurrentQueue(size_t minCapacity, size_t maxExplicitProducers, size_t maxImplicitProducers)
-		: inner(minCapacity, maxExplicitProducers, maxImplicitProducers), sema(create<LightweightSemaphore>(), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
+		: inner(minCapacity, maxExplicitProducers, maxImplicitProducers), sema(create<LightweightSemaphore>(0, Traits::MAX_SEMA_SPINS), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
 	{
 		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
@@ -551,18 +551,11 @@ public:
 	
 
 private:
-	template<typename U>
-	static inline U* create()
+	template<typename U, typename A1, typename A2>
+	static inline U* create(A1&& a1, A2&& a2)
 	{
-		auto p = (Traits::malloc)(sizeof(U));
-		return p != nullptr ? new (p) U : nullptr;
-	}
-	
-	template<typename U, typename A1>
-	static inline U* create(A1&& a1)
-	{
-		auto p = (Traits::malloc)(sizeof(U));
-		return p != nullptr ? new (p) U(std::forward<A1>(a1)) : nullptr;
+		void* p = (Traits::malloc)(sizeof(U));
+		return p != nullptr ? new (p) U(std::forward<A1>(a1), std::forward<A2>(a2)) : nullptr;
 	}
 	
 	template<typename U>

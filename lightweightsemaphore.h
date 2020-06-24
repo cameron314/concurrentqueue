@@ -257,14 +257,12 @@ public:
 private:
 	std::atomic<ssize_t> m_count;
 	details::Semaphore m_sema;
+	int m_maxSpins;
 
 	bool waitWithPartialSpinning(std::int64_t timeout_usecs = -1)
 	{
 		ssize_t oldCount;
-		// Is there a better way to set the initial spin count?
-		// If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
-		// as threads start hitting the kernel semaphore.
-		int spin = 10000;
+		int spin = m_maxSpins;
 		while (--spin >= 0)
 		{
 			oldCount = m_count.load(std::memory_order_relaxed);
@@ -298,7 +296,7 @@ private:
 	{
 		assert(max > 0);
 		ssize_t oldCount;
-		int spin = 10000;
+		int spin = m_maxSpins;
 		while (--spin >= 0)
 		{
 			oldCount = m_count.load(std::memory_order_relaxed);
@@ -336,9 +334,10 @@ private:
 	}
 
 public:
-	LightweightSemaphore(ssize_t initialCount = 0) : m_count(initialCount)
+	LightweightSemaphore(ssize_t initialCount = 0, int maxSpins = 10000) : m_count(initialCount), m_maxSpins(maxSpins)
 	{
 		assert(initialCount >= 0);
+		assert(maxSpins >= 0);
 	}
 
 	bool tryWait()
