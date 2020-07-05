@@ -206,6 +206,10 @@ public:
 
 	bool timed_wait(std::uint64_t usecs)
 	{
+		if (usecs == 0) {
+			return false;
+		}
+
 		struct timespec ts;
 		const int usecs_in_1_sec = 1000000;
 		const int nsecs_in_1_sec = 1000000000;
