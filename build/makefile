@@ -29,7 +29,7 @@ tests: bin/unittests$(EXT) bin/fuzztests$(EXT)
 	
 benchmarks: bin/benchmarks$(EXT)
 
-bin/unittests$(EXT): ../concurrentqueue.h ../blockingconcurrentqueue.h ../tests/unittests/unittests.cpp ../tests/unittests/mallocmacro.cpp ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp ../tests/corealgos.h ../tests/unittests/minitest.h makefile
+bin/unittests$(EXT): ../concurrentqueue.h ../blockingconcurrentqueue.h ../lightweightsemaphore.h ../tests/unittests/unittests.cpp ../tests/unittests/mallocmacro.cpp ../tests/common/simplethread.h ../tests/common/simplethread.cpp ../tests/common/systemtime.h ../tests/common/systemtime.cpp ../tests/corealgos.h ../tests/unittests/minitest.h makefile
 	test -d bin || mkdir bin
 	g++ -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion $(OPTS) -fno-elide-constructors ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/unittests/unittests.cpp -o bin/unittests$(EXT) $(LD_OPTS)
 

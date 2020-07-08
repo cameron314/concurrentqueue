@@ -274,8 +274,11 @@ private:
 		if (oldCount > 0)
 			return true;
 		if (timeout_usecs < 0)
-			return m_sema.wait();
-		if (m_sema.timed_wait((std::uint64_t)timeout_usecs))
+		{
+			if (m_sema.wait())
+				return true;
+		}
+		if (timeout_usecs > 0 && m_sema.timed_wait((std::uint64_t)timeout_usecs))
 			return true;
 		// At this point, we've timed out waiting for the semaphore, but the
 		// count is still decremented indicating we may still be waiting on
@@ -311,12 +314,7 @@ private:
 		oldCount = m_count.fetch_sub(1, std::memory_order_acquire);
 		if (oldCount <= 0)
 		{
-			if (timeout_usecs < 0)
-			{
-				if (!m_sema.wait())
-					return 0;
-			}
-			else if (!m_sema.timed_wait((std::uint64_t)timeout_usecs))
+			if ((timeout_usecs == 0) || (timeout_usecs < 0 && !m_sema.wait()) || (timeout_usecs > 0 && !m_sema.timed_wait((std::uint64_t)timeout_usecs)))
 			{
 				while (true)
 				{
