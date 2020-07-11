@@ -484,7 +484,7 @@ bool run_test(uint64_t seed, int iterations, test_type& out_type, const char*& o
 								count = q.try_dequeue_bulk(bulkData.begin(), bulkData.size());
 							}
 							for (std::size_t k = 0; k != count; ++k) {
-								auto item = bulkData[k];
+								item = bulkData[k];
 								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) >= 0 && (item & 0xFFFFFF) < (int)largestOpCount);
 								ASSERT_OR_FAIL_THREAD((item & 0xFFFFFF) > lastItems[item >> 24]);
 								lastItems[item >> 24] = item & 0xFFFFFF;
@@ -784,12 +784,12 @@ int main(int argc, char** argv)
 		}		
 	}
 	
-	int result = 0;
+	int exitCode = 0;
 	test_type test;
 	const char* failReason;
 	if (singleSeed) {
 		if (!run_test(seed, SINGLE_SEED_ITERATIONS, test, failReason)) {
-			result = 1;
+			exitCode = 1;
 			std::ofstream fout(LOG_FILE, std::ios::app);
 			fout << test_names[test] << " failed: " << failReason << std::endl;
 			std::printf("    %s failed: %s\n", test_names[test], failReason);
@@ -818,7 +818,7 @@ int main(int argc, char** argv)
 			std::signal(SIGSEGV, signal_handler);
 			std::signal(SIGABRT, signal_handler);
 			
-			int result;
+			bool result;
 			try {
 				result = run_test(seed, 2, test, failReason);
 			}
@@ -839,7 +839,7 @@ int main(int argc, char** argv)
 			std::signal(SIGABRT, SIG_DFL);
 			
 			if (!result) {
-				result = 1;
+				exitCode = 1;
 				std::ofstream fout(LOG_FILE, std::ios::app);
 				fout << "*** Failure detected!\n      Seed: " << std::hex << seed << "\n      Test: " << test_names[test] << "\n      Reason: " << failReason << std::endl;
 				std::printf("*** Failure detected!\n      Seed: %08x%08x\n      Test: %s\n      Reason: %s\n", (uint32_t)(seed >> 32), (uint32_t)(seed), test_names[test], failReason);
@@ -863,5 +863,5 @@ int main(int argc, char** argv)
 		}
 	}
 	
-	return result;
+	return exitCode;
 }

@@ -274,6 +274,11 @@ public:
 #define SUPER_ALIGNMENT 128
 #endif
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4324)  // structure was padded due to alignment specifier
+#endif
+
 struct MOODYCAMEL_ALIGNAS(SUPER_ALIGNMENT) VeryAligned {
 	static size_t errors;
 
@@ -304,6 +309,11 @@ struct MOODYCAMEL_ALIGNAS(SUPER_ALIGNMENT) VeryAligned {
 	VeryAligned& operator=(VeryAligned const&) MOODYCAMEL_DELETE_FUNCTION;
 };
 size_t VeryAligned::errors = 0;
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 
 
 class ConcurrentQueueTests : public TestClass<ConcurrentQueueTests>
@@ -403,35 +413,35 @@ public:
 			ASSERT_OR_FAIL(!details::circular_less_than(a, b));
 			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
 			
-			a = 0; b = 1 << 31;
+			a = 0; b = 1u << 31;
 			ASSERT_OR_FAIL(!details::circular_less_than(a, b));
 			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
 			
-			a = 1; b = 1 << 31;
+			a = 1; b = 1u << 31;
 			ASSERT_OR_FAIL(details::circular_less_than(a, b));
 			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
 			
-			a = 0; b = (1 << 31) + 1;
-			ASSERT_OR_FAIL(!details::circular_less_than(a, b));
-			ASSERT_OR_FAIL(details::circular_less_than(b, a));
-			
-			a = 100; b = (1 << 31) + 1;
-			ASSERT_OR_FAIL(details::circular_less_than(a, b));
-			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
-			
-			a = (1 << 31) + 7; b = 5;
-			ASSERT_OR_FAIL(details::circular_less_than(a, b));
-			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
-			
-			a = (1 << 16) + 7; b = (1 << 16) + 5;
+			a = 0; b = (1u << 31) + 1;
 			ASSERT_OR_FAIL(!details::circular_less_than(a, b));
 			ASSERT_OR_FAIL(details::circular_less_than(b, a));
 			
-			a = 0xFFFFFFFF; b = 0;
+			a = 100; b = (1u << 31) + 1;
 			ASSERT_OR_FAIL(details::circular_less_than(a, b));
 			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
 			
-			a = 0xFFFFFFFF; b = 0xFFFFFF;
+			a = (1u << 31) + 7; b = 5;
+			ASSERT_OR_FAIL(details::circular_less_than(a, b));
+			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
+			
+			a = (1u << 16) + 7; b = (1 << 16) + 5;
+			ASSERT_OR_FAIL(!details::circular_less_than(a, b));
+			ASSERT_OR_FAIL(details::circular_less_than(b, a));
+			
+			a = 0xFFFFFFFFu; b = 0;
+			ASSERT_OR_FAIL(details::circular_less_than(a, b));
+			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
+			
+			a = 0xFFFFFFFFu; b = 0xFFFFFFu;
 			ASSERT_OR_FAIL(details::circular_less_than(a, b));
 			ASSERT_OR_FAIL(!details::circular_less_than(b, a));
 		}
@@ -2059,7 +2069,7 @@ public:
 			bool success[2] = { true, true };
 			for (int i = 0; i != 2; ++i) {
 				if (i == 0) {
-					threads[i] = SimpleThread([&](int i) {
+					threads[i] = SimpleThread([&](int) {
 						// Producer
 						ProducerToken tok(q);
 						for (int i = 0; i != 32*1024; ++i) {
@@ -2068,7 +2078,7 @@ public:
 					}, i);
 				}
 				else {
-					threads[i] = SimpleThread([&](int i) {
+					threads[i] = SimpleThread([&](int) {
 						// Consumer
 						int items[5];
 						int prevItem = -1;
@@ -2108,7 +2118,7 @@ public:
 			bool success[2] = { true, true };
 			for (int i = 0; i != 2; ++i) {
 				if (i == 0) {
-					threads[i] = SimpleThread([&](int i) {
+					threads[i] = SimpleThread([&](int) {
 						// Producer
 						for (int i = 0; i != 32*1024; ++i) {
 							q.enqueue(i);
@@ -2116,7 +2126,7 @@ public:
 					}, i);
 				}
 				else {
-					threads[i] = SimpleThread([&](int i) {
+					threads[i] = SimpleThread([&](int) {
 						// Consumer
 						int items[5];
 						int prevItem = -1;
@@ -4666,7 +4676,7 @@ public:
 							auto item = local.get_or_create();
 							item->value = (int)tid;
 							for (int i = 0; i != 1024; ++i) {
-								auto item = local.get_or_create();
+								item = local.get_or_create();
 								if (item->value != (int)tid) {
 									failed[tid] = true;
 								}
@@ -4840,8 +4850,8 @@ public:
 					else {
 						ASSERT_OR_FAIL(removed[i].load(std::memory_order_relaxed));
 					}
-					auto removed = hash.remove(i);
-					ASSERT_OR_FAIL(removed == val);
+					auto removedVal = hash.remove(i);
+					ASSERT_OR_FAIL(removedVal == val);
 				}
 				for (int i = 0; i != MAX_ENTRIES; ++i) {
 					ASSERT_OR_FAIL(hash.find(i) == nullptr);

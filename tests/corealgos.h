@@ -277,7 +277,7 @@ struct ThreadLocal
 				auto raw = static_cast<char*>(corealgos_allocator::malloc(sizeof(InnerHash) + std::alignment_of<KeyValuePair>::value - 1 + sizeof(KeyValuePair) * newCapacity));
 				if (raw == nullptr) {
 					// Allocation failed
-					currentHashCount.fetch_add(-1, std::memory_order_relaxed);
+					currentHashCount.fetch_add((uint32_t)-1, std::memory_order_relaxed);
 					resizeInProgress.clear(std::memory_order_relaxed);
 					return nullptr;
 				}
@@ -434,7 +434,7 @@ struct FreeList
            		assert((head->freeListRefs.load(std::memory_order_relaxed) & SHOULD_BE_ON_FREELIST) == 0);
 
                 // Decrease refcount twice, once for our ref, and once for the list's ref
-                head->freeListRefs.fetch_add(-2, std::memory_order_release);
+                head->freeListRefs.fetch_add(-2u, std::memory_order_release);
                 return head;
             }
 
@@ -442,7 +442,7 @@ struct FreeList
             // increased.
             // Note that we don't need to release any memory effects, but we do need to ensure that the reference
 			// count decrement happens-after the CAS on the head.
-            refs = prevHead->freeListRefs.fetch_add(-1, std::memory_order_acq_rel);
+            refs = prevHead->freeListRefs.fetch_add(-1u, std::memory_order_acq_rel);
             if (refs == SHOULD_BE_ON_FREELIST + 1) {
                 add_knowing_refcount_is_zero(prevHead);
             }
