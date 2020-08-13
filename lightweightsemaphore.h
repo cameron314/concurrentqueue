@@ -401,10 +401,10 @@ public:
 		}
 	}
 	
-	ssize_t availableApprox() const
+	std::size_t availableApprox() const
 	{
 		ssize_t count = m_count.load(std::memory_order_relaxed);
-		return count > 0 ? count : 0;
+		return count > 0 ? static_cast<std::size_t>(count) : 0;
 	}
 };
 
