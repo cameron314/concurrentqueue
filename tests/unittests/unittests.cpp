@@ -13,6 +13,7 @@
 #include <string>
 #include <cstddef>
 #include <string>
+#include <iterator>
 
 struct MakeSureCustomNewCanPeacefullyCoexist;
 void* operator new(size_t size, MakeSureCustomNewCanPeacefullyCoexist* x);
