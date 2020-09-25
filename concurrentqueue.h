@@ -1688,7 +1688,7 @@ private:
 		{
 		}
 		
-		virtual ~ProducerBase() { };
+		virtual ~ProducerBase() { }
 		
 		template<typename U>
 		inline bool dequeue(U& element)
@@ -2239,7 +2239,7 @@ private:
 				desiredCount = desiredCount < max ? desiredCount : max;
 				std::atomic_thread_fence(std::memory_order_acquire);
 				
-				auto myDequeueCount = this->dequeueOptimisticCount.fetch_add(desiredCount, std::memory_order_relaxed);;
+				auto myDequeueCount = this->dequeueOptimisticCount.fetch_add(desiredCount, std::memory_order_relaxed);
 				
 				tail = this->tailIndex.load(std::memory_order_acquire);
 				auto actualCount = static_cast<size_t>(tail - (myDequeueCount - overcommit));
