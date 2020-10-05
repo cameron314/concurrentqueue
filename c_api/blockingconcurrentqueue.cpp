@@ -24,7 +24,7 @@ int moodycamel_bcq_destroy(MoodycamelBCQHandle handle)
 	return 1;
 }
 
-int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelCQValue value)
+int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelValue value)
 {
 	if (handle == nullptr) {
 		return 0;
@@ -33,7 +33,7 @@ int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelCQValue value)
 	return 1;
 }
 
-int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelCQValue* value)
+int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value)
 {
 	if (handle == nullptr) {
 		return 0;
