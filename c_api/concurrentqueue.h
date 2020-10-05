@@ -20,25 +20,19 @@ need non-windows version here
 */
 #endif
 
-#define MOODYCAMEL_OK 0
-#define MOODYCAMEL_ERR -1
-#define MOODYCAMEL_BAD_HANDLE -2
-#define MOODYCAMEL_BAD_VALUE_HANDLE -3
-#define MOODYCAMEL_VALUE_NOT_FOUND 1
+typedef void* MoodycamelCQHandle;
+typedef void* MoodycamelBCQHandle;
+typedef void* MoodycamelCQValue;
 
-typedef void* CQHandle;
-typedef void* BCQHandle;
-typedef void* CQValue;
+MOODYCAMEL_EXPORT int moodycamel_cq_create(MoodycamelCQHandle* handle);
+MOODYCAMEL_EXPORT int moodycamel_cq_destroy(MoodycamelCQHandle handle);
+MOODYCAMEL_EXPORT int moodycamel_cq_enqueue(MoodycamelCQHandle handle, MoodycamelCQValue value);
+MOODYCAMEL_EXPORT int moodycamel_cq_try_dequeue(MoodycamelCQHandle handle, MoodycamelCQValue* value);
 
-MOODYCAMEL_EXPORT int moodycamel_cq_create(CQHandle* handle);
-MOODYCAMEL_EXPORT int moodycamel_cq_destroy(CQHandle handle);
-MOODYCAMEL_EXPORT int moodycamel_cq_enqueue(CQHandle handle, CQValue value);
-MOODYCAMEL_EXPORT int moodycamel_cq_try_dequeue(CQHandle handle, CQValue value);
-
-MOODYCAMEL_EXPORT int moodycamel_bcq_create(BCQHandle* handle);
-MOODYCAMEL_EXPORT int moodycamel_bcq_destroy(BCQHandle handle);
-MOODYCAMEL_EXPORT int moodycamel_bcq_enqueue(BCQHandle handle, CQValue value);
-MOODYCAMEL_EXPORT int moodycamel_bcq_wait_dequeue(BCQHandle handle, CQValue value);
+MOODYCAMEL_EXPORT int moodycamel_bcq_create(MoodycamelBCQHandle* handle);
+MOODYCAMEL_EXPORT int moodycamel_bcq_destroy(MoodycamelBCQHandle handle);
+MOODYCAMEL_EXPORT int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelCQValue value);
+MOODYCAMEL_EXPORT int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelCQValue* value);
 
 
 #ifdef __cplusplus

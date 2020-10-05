@@ -1,55 +1,47 @@
 #include "concurrentqueue.h"
 #include "../concurrentqueue.h"
 
-typedef moodycamel::ConcurrentQueue<void*> CQType, *CQPtr;
+typedef moodycamel::ConcurrentQueue<void*> MoodycamelCQType, *MoodycamelCQPtr;
 
 extern "C" {
 
-int moodycamel_cq_create(CQHandle* handle)
+int moodycamel_cq_create(MoodycamelCQHandle* handle)
 {
 	if (handle == nullptr) {
-		return MOODYCAMEL_BAD_HANDLE;
+		return 0;
 	}
-	CQPtr retval = new CQType;
+	MoodycamelCQPtr retval = new MoodycamelCQType;
+	if (retval == nullptr) {
+		return 0;
+	}
 	*handle = retval;
-	return MOODYCAMEL_OK;
+	return 1;
 }
 
-int moodycamel_cq_destroy(CQHandle handle)
+int moodycamel_cq_destroy(MoodycamelCQHandle handle)
+{
+	delete reinterpret_cast<MoodycamelCQPtr>(handle);
+	return 1;
+}
+
+int moodycamel_cq_enqueue(MoodycamelCQHandle handle, MoodycamelCQValue value)
 {
 	if (handle == nullptr) {
-		return MOODYCAMEL_BAD_HANDLE;
+		return 0;
 	}
-	CQPtr retval = reinterpret_cast<CQPtr>(handle);
-	delete retval;
-	return MOODYCAMEL_OK;
+	reinterpret_cast<MoodycamelCQPtr>(handle)->enqueue(value);
+	return 1;
 }
 
-int moodycamel_cq_enqueue(CQHandle handle, CQValue value)
+int moodycamel_cq_try_dequeue(MoodycamelCQHandle handle, MoodycamelCQValue* value)
 {
 	if (handle == nullptr) {
-		return MOODYCAMEL_BAD_HANDLE;
+		return 0;
 	}
 	if (value == nullptr) {
-		return MOODYCAMEL_BAD_VALUE_HANDLE;
+		return 0;
 	}
-	reinterpret_cast<CQPtr>(handle)->enqueue(value);
-	return MOODYCAMEL_OK;
-}
-
-int moodycamel_cq_try_dequeue(CQHandle handle, CQValue value)
-{
-	if (handle == nullptr) {
-		return MOODYCAMEL_BAD_HANDLE;
-	}
-	if (value == nullptr) {
-		return MOODYCAMEL_BAD_VALUE_HANDLE;
-	}
-	bool found = reinterpret_cast<CQPtr>(handle)->try_dequeue(value);
-	if (found == false) {
-		return MOODYCAMEL_VALUE_NOT_FOUND;
-	}
-	return MOODYCAMEL_OK;
+	return reinterpret_cast<MoodycamelCQPtr>(handle)->try_dequeue(*value) ? 1 : 0;
 }
 
 }
