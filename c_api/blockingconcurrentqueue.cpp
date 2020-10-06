@@ -23,8 +23,7 @@ int moodycamel_bcq_destroy(MoodycamelBCQHandle handle)
 
 int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelValue value)
 {
-	reinterpret_cast<MoodycamelBCQPtr>(handle)->enqueue(value);
-	return 1;
+	return reinterpret_cast<MoodycamelBCQPtr>(handle)->enqueue(value) ? 1 : 0;
 }
 
 int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value)
@@ -35,8 +34,7 @@ int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* val
 
 int moodycamel_bcq_try_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value)
 {
-	bool rc = reinterpret_cast<MoodycamelBCQPtr>(handle)->try_dequeue(*value);
-	return rc ? 1 : 0;
+	return reinterpret_cast<MoodycamelBCQPtr>(handle)->try_dequeue(*value) ? 1 : 0;
 }
 
 }

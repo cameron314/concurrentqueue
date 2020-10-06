@@ -23,8 +23,7 @@ int moodycamel_cq_destroy(MoodycamelCQHandle handle)
 
 int moodycamel_cq_enqueue(MoodycamelCQHandle handle, MoodycamelValue value)
 {
-	bool rc = reinterpret_cast<MoodycamelCQPtr>(handle)->enqueue(value);
-	return rc ? 1 : 0;
+	return reinterpret_cast<MoodycamelCQPtr>(handle)->enqueue(value) ? 1 : 0;
 }
 
 int moodycamel_cq_try_dequeue(MoodycamelCQHandle handle, MoodycamelValue* value)
