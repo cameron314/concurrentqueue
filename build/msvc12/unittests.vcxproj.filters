@@ -43,5 +43,11 @@
     <ClCompile Include="..\..\tests\unittests\mallocmacro.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\c_api\blockingconcurrentqueue.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\c_api\concurrentqueue.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

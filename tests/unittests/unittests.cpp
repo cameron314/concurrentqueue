@@ -31,6 +31,7 @@ void operator delete(void* ptr, MakeSureCustomNewCanPeacefullyCoexist* x);
 #include "../common/systemtime.h"
 #include "../../concurrentqueue.h"
 #include "../../blockingconcurrentqueue.h"
+#include "../../c_api/concurrentqueue.h"
 
 namespace {
 	struct tracking_allocator
@@ -353,7 +354,12 @@ public:
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
 		REGISTER_TEST(timed_blocking_wrappers);
-
+		//c_api/concurrentqueue
+		REGISTER_TEST(c_api_create);
+		REGISTER_TEST(c_api_enqueue);
+		REGISTER_TEST(c_api_try_dequeue);
+		REGISTER_TEST(c_api_destroy);
+		
 		// Semaphore
 		REGISTER_TEST(acquire_and_signal);
 		REGISTER_TEST(try_acquire_and_signal);
@@ -4387,6 +4393,58 @@ public:
 			ASSERT_OR_FAIL(!q.wait_dequeue_timed(tok, item, 0));
 		}
 		
+		return true;
+	}
+
+	
+	bool c_api_create()
+	{
+		MoodycamelCQHandle handle;
+		int rc = moodycamel_cq_create(&handle);
+		ASSERT_OR_FAIL(rc == 1);
+		ASSERT_OR_FAIL(handle != nullptr);
+		moodycamel_cq_destroy(handle);
+		return true;
+	}
+
+	bool c_api_enqueue()
+	{
+		MoodycamelCQHandle handle;
+		int rc = moodycamel_cq_create(&handle);
+		int i = 10;
+		rc = moodycamel_cq_enqueue(handle, &i);
+		ASSERT_OR_FAIL(rc == 1);
+		moodycamel_cq_destroy(handle);
+		return true;
+	}
+	
+	bool c_api_try_dequeue()
+	{
+		MoodycamelCQHandle handle;
+		int rc = moodycamel_cq_create(&handle);
+		{
+			MoodycamelValue n;
+			rc = moodycamel_cq_try_dequeue(handle, &n);
+			ASSERT_OR_FAIL(rc == 0);
+		}
+		int i = 10;
+		rc = moodycamel_cq_enqueue(handle, &i);
+		{
+			MoodycamelValue value;
+			rc = moodycamel_cq_try_dequeue(handle, &value);
+			int n = *reinterpret_cast<int*>(value);
+			ASSERT_OR_FAIL(rc == 1);
+			ASSERT_OR_FAIL(n == 10);
+		}
+		moodycamel_cq_destroy(handle);
+		return true;
+	}
+	
+	bool c_api_destroy()
+	{
+		MoodycamelCQHandle handle;
+		moodycamel_cq_create(&handle);		
+		moodycamel_cq_destroy(handle);
 		return true;
 	}
 
