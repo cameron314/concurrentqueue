@@ -7,9 +7,6 @@ extern "C" {
 	
 int moodycamel_bcq_create(MoodycamelBCQHandle* handle)
 {
-	if (handle == nullptr) {
-		return 0;
-	}
 	MoodycamelBCQPtr retval = new MoodycamelBCQType;
 	if (retval == nullptr) {
 		return 0;
@@ -26,23 +23,20 @@ int moodycamel_bcq_destroy(MoodycamelBCQHandle handle)
 
 int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelValue value)
 {
-	if (handle == nullptr) {
-		return 0;
-	}
 	reinterpret_cast<MoodycamelBCQPtr>(handle)->enqueue(value);
 	return 1;
 }
 
 int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value)
 {
-	if (handle == nullptr) {
-		return 0;
-	}
-	if (value == nullptr) {
-		return 0;
-	}
 	reinterpret_cast<MoodycamelBCQPtr>(handle)->wait_dequeue(*value);
 	return 1;
+}
+
+int moodycamel_bcq_try_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value)
+{
+	bool rc = reinterpret_cast<MoodycamelBCQPtr>(handle)->try_dequeue(*value);
+	return rc ? 1 : 0;
 }
 
 }

@@ -4,6 +4,7 @@
 extern "C" {
 #endif
 
+#ifndef MOODYCAMEL_EXPORT
 #ifdef _WIN32
 #if defined(MOODYCAMEL_STATIC) //preferred way
 #define MOODYCAMEL_EXPORT
@@ -19,6 +20,7 @@ extern "C" {
 need non-windows version here
 */
 #endif
+#endif
 
 typedef void* MoodycamelCQHandle;
 typedef void* MoodycamelBCQHandle;
@@ -33,7 +35,7 @@ MOODYCAMEL_EXPORT int moodycamel_bcq_create(MoodycamelBCQHandle* handle);
 MOODYCAMEL_EXPORT int moodycamel_bcq_destroy(MoodycamelBCQHandle handle);
 MOODYCAMEL_EXPORT int moodycamel_bcq_enqueue(MoodycamelBCQHandle handle, MoodycamelValue value);
 MOODYCAMEL_EXPORT int moodycamel_bcq_wait_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value);
-
+MOODYCAMEL_EXPORT int moodycamel_bcq_try_dequeue(MoodycamelBCQHandle handle, MoodycamelValue* value);
 
 #ifdef __cplusplus
 }
