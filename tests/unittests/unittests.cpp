@@ -4403,6 +4403,7 @@ public:
 		int rc = moodycamel_cq_create(&handle);
 		ASSERT_OR_FAIL(rc == 1);
 		ASSERT_OR_FAIL(handle != nullptr);
+		moodycamel_cq_destroy(handle);
 		return true;
 	}
 
@@ -4413,6 +4414,7 @@ public:
 		int i = 10;
 		rc = moodycamel_cq_enqueue(handle, &i);
 		ASSERT_OR_FAIL(rc == 1);
+		moodycamel_cq_destroy(handle);
 		return true;
 	}
 	
@@ -4434,6 +4436,7 @@ public:
 			ASSERT_OR_FAIL(rc == 1);
 			ASSERT_OR_FAIL(n == 10);
 		}
+		moodycamel_cq_destroy(handle);
 		return true;
 	}
 	
