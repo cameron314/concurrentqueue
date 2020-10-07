@@ -13,12 +13,6 @@ extern "C" {
 #else
 #define MOODYCAMEL_EXPORT __declspec(dllimport)
 #endif
-#else
-	
-#error *nix support is untested
-/*
-need non-windows version here
-*/
 #endif
 #endif
 
@@ -40,4 +34,3 @@ MOODYCAMEL_EXPORT int moodycamel_bcq_try_dequeue(MoodycamelBCQHandle handle, Moo
 #ifdef __cplusplus
 }
 #endif
-
