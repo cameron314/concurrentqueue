@@ -28,6 +28,7 @@
 #include "boostqueue.h"
 #include "tbbqueue.h"
 #include "stdqueue.h"
+#include "dlibqueue.h"
 #include "../tests/common/simplethread.h"
 #include "../tests/common/systemtime.h"
 #include "cpuid.h"
@@ -192,7 +193,7 @@ enum queue_id_t
 	queue_simplelockfree,
 	queue_lockbased,
 	queue_std,
-	
+	queue_dlib,
 	QUEUE_COUNT
 };
 
@@ -204,6 +205,7 @@ const char QUEUE_NAMES[QUEUE_COUNT][64] = {
 	"SimpleLockFreeQueue",
 	"LockBasedQueue",
 	"std::queue",
+	"dlib::pipe"
 };
 
 const char QUEUE_SUMMARY_NOTES[QUEUE_COUNT][128] = {
@@ -214,6 +216,7 @@ const char QUEUE_SUMMARY_NOTES[QUEUE_COUNT][128] = {
 	"",
 	"",
 	"single thread only",
+	""
 };
 
 const bool QUEUE_TOKEN_SUPPORT[QUEUE_COUNT] = {
@@ -224,6 +227,7 @@ const bool QUEUE_TOKEN_SUPPORT[QUEUE_COUNT] = {
 	false,
 	false,
 	false,
+	false
 };
 
 const int QUEUE_MAX_THREADS[QUEUE_COUNT] = {
@@ -234,6 +238,7 @@ const int QUEUE_MAX_THREADS[QUEUE_COUNT] = {
 	-1,
 	-1,
 	1,
+	-1
 };
 
 const bool QUEUE_BENCH_SUPPORT[QUEUE_COUNT][BENCHMARK_TYPE_COUNT] = {
@@ -244,6 +249,7 @@ const bool QUEUE_BENCH_SUPPORT[QUEUE_COUNT][BENCHMARK_TYPE_COUNT] = {
 	{ 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1 },
 	{ 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1 },
 	{ 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0 },
+	{ 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1 }
 };
 
 
@@ -1984,6 +1990,9 @@ int main(int argc, char** argv)
 					case queue_std:
 						maxOps = determineMaxOpsForBenchmark<StdQueueWrapper<int>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed);
 						break;
+					case queue_dlib:
+						maxOps = determineMaxOpsForBenchmark<DlibQueueWrapper<int>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed);
+						break;
 					default:
 						assert(false && "There should be a case here for every queue in the benchmarks!");
 					}
@@ -2016,6 +2025,9 @@ int main(int argc, char** argv)
 							break;
 						case queue_std:
 							elapsed = runBenchmark<StdQueueWrapper<int>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed, maxOps, maxThreads, ops);
+							break;
+						case queue_dlib:
+							elapsed = runBenchmark<DlibQueueWrapper<int>>((benchmark_type_t)benchmark, nthreads, (bool)useTokens, seed, maxOps, maxThreads, ops);
 							break;
 						default:
 							assert(false && "There should be a case here for every queue in the benchmarks!");
