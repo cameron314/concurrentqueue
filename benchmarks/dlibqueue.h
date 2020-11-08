@@ -1,7 +1,7 @@
 #pragma once
 
 #include <utility>
-#include <dlib/pipe.h>
+#include "dlib/pipe.h"
 #include "wrappers.h"
 
 template<typename T>
