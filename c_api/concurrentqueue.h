@@ -13,9 +13,9 @@ extern "C" {
 #else
 #define MOODYCAMEL_EXPORT __declspec(dllimport)
 #endif
-#endif
 #else
 #define MOODYCAMEL_EXPORT
+#endif
 #endif
 
 typedef void* MoodycamelCQHandle;
