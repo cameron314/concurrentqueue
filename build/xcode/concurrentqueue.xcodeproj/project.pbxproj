@@ -12,6 +12,7 @@
 		CFBF030E1C595BD60042518B /* mallocmacro.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF03081C595BD60042518B /* mallocmacro.cpp */; };
 		CFBF030F1C595BD60042518B /* unittests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF030A1C595BD60042518B /* unittests.cpp */; };
 		CFBF030F1C595BD60042518B /* concurrentqueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF030A1C595BD60042518B /* concurrentqueue.cpp */; };
+		CFBF030F1C595BD60042518B /* blockingconcurrentqueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF030A1C595BD60042518B /* blockingconcurrentqueue.cpp */; };
 		CFBF03121C5962CD0042518B /* main_ios.mm in Sources */ = {isa = PBXBuildFile; fileRef = CFBF03101C595FBF0042518B /* main_ios.mm */; };
 		CFBF03141C5962E60042518B /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFBF03131C5962E60042518B /* UIKit.framework */; };
 /* End PBXBuildFile section */
@@ -26,6 +27,7 @@
 		CFBF03091C595BD60042518B /* minitest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = minitest.h; sourceTree = "<group>"; };
 		CFBF030A1C595BD60042518B /* unittests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = unittests.cpp; sourceTree = "<group>"; };
 		CFBF030A1C595BD60042518B /* concurrentqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = concurrentqueue.cpp; sourceTree = "<group>"; };
+		CFBF030A1C595BD60042518B /* blockingconcurrentqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = blockingconcurrentqueue.cpp; sourceTree = "<group>"; };
 		CFBF03101C595FBF0042518B /* main_ios.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = main_ios.mm; sourceTree = "<group>"; };
 		CFBF03131C5962E60042518B /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -66,6 +68,7 @@
 			isa = PBXGroup;
 			children = (
 				CFBF03011C595BD60042518B /* concurrentqueue.cpp */,
+				CFBF03011C595BD60042518B /* blockingconcurrentqueue.cpp */,
 			);
 			name = c_api;
 			path = ../../c_api;
@@ -167,6 +170,7 @@
 				CFBF030B1C595BD60042518B /* simplethread.cpp in Sources */,
 				CFBF030F1C595BD60042518B /* unittests.cpp in Sources */,
 				CFBF030F1C595BD60042518B /* concurrentqueue.cpp in Sources */,
+				CFBF030F1C595BD60042518B /* blockingconcurrentqueue.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
