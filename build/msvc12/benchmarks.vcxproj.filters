@@ -12,6 +12,9 @@
     <Filter Include="Source Files\tbb">
       <UniqueIdentifier>{6d3507c8-0e7e-45de-90d5-9daacabc8d2b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\dlib">
+      <UniqueIdentifier>{3dfee594-40d0-4fea-992a-3958d8494fdd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\benchmarks\benchmarks.cpp">
@@ -46,6 +49,9 @@
     </ClCompile>
     <ClCompile Include="..\..\benchmarks\tbb\spin_mutex.cpp">
       <Filter>Source Files\tbb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\benchmarks\dlib\test_for_odr_violations.cpp">
+      <Filter>Source Files\dlib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -169,6 +169,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4244;4800</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\benchmarks\cpuid.cpp" />
+    <ClCompile Include="..\..\benchmarks\dlib\test_for_odr_violations.cpp" />
     <ClCompile Include="..\..\benchmarks\tbb\cache_aligned_allocator.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">__TBB_BUILD=1;USE_WINTHREAD;WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">__TBB_BUILD=1;USE_WINTHREAD;WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
