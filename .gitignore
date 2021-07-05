@@ -8,6 +8,7 @@
 *.vs
 *.VC.db
 build/bin/
+build/*.o
 build/*.log
 build/msvc16/*.log
 build/msvc16/obj/
