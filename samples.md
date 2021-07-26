@@ -186,7 +186,7 @@ for (int i = 0; i != ProducerCount; ++i) {
 for (int i = 0; i != ConsumerCount; ++i) {
 	consumers[i] = std::thread([&]() {
 		Item item;
-		while (promisedElementsRemaining.fetch_sub(1, std::memory_order_relaxed)) {
+		while (promisedElementsRemaining.fetch_sub(1, std::memory_order_relaxed) > 0) {
 			q.wait_dequeue(item);
 			consumeItem(item);
 		}
