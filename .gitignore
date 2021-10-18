@@ -21,6 +21,8 @@ build/msvc12/obj/
 build/msvc11/*.log
 build/msvc11/obj/
 build/xcode/build/
+.idea/
+cmake-build*/
 tests/fuzztests/fuzztests.log
 benchmarks/benchmarks.log
 tests/CDSChecker/*.o
