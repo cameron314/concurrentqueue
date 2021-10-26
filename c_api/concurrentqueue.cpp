@@ -31,4 +31,9 @@ int moodycamel_cq_try_dequeue(MoodycamelCQHandle handle, MoodycamelValue* value)
 	return reinterpret_cast<MoodycamelCQPtr>(handle)->try_dequeue(*value) ? 1 : 0;
 }
 
+size_t moodycamel_cq_size_approx(MoodycamelCQHandle handle)
+{
+    return reinterpret_cast<MoodycamelCQPtr>(handle)->size_approx();
+}
+
 }
