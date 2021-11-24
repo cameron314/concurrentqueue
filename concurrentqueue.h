@@ -1314,7 +1314,7 @@ public:
 	// Returns true if the underlying atomic variables used by
 	// the queue are lock-free (they should be on most platforms).
 	// Thread-safe.
-	static bool is_lock_free()
+	static constexpr bool is_lock_free()
 	{
 		return
 			details::static_is_lock_free<bool>::value == 2 &&

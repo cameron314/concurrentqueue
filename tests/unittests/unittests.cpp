@@ -3643,9 +3643,9 @@ public:
 		
 		// is_lock_free()
 		{
-			bool lockFree = ConcurrentQueue<Foo, Traits>::is_lock_free();
+			constexpr bool lockFree = ConcurrentQueue<Foo, Traits>::is_lock_free();
 #if defined(__amd64__) || defined(_M_X64) || defined(__x86_64__) || defined(_M_IX86) || defined(__i386__) || defined(_M_PPC) || defined(__powerpc__)
-			ASSERT_OR_FAIL(lockFree);
+			static_assert(lockFree, "is_lock_free should be true");
 #else
 			(void)lockFree;
 #endif
