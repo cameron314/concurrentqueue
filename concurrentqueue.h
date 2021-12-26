@@ -1387,17 +1387,17 @@ private:
 	// Queue methods
 	///////////////////////////////
 	
-	template<AllocationMode canAlloc, typename... U>
-	inline bool inner_enqueue(producer_token_t const& token, U&&... element)
+	template<AllocationMode canAlloc, typename... Args>
+	inline bool inner_enqueue(producer_token_t const& token, Args&&... args)
 	{
-		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue<canAlloc>(std::forward<U>(element)...);
+		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue<canAlloc>(std::forward<Args>(args)...);
 	}
 	
-	template<AllocationMode canAlloc, typename... U>
-	inline bool inner_enqueue(U&&... element)
+	template<AllocationMode canAlloc, typename... Args>
+	inline bool inner_enqueue(Args&&... args)
 	{
 		auto producer = get_or_add_implicit_producer();
-		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue<canAlloc>(std::forward<U>(element)...);
+		return producer == nullptr ? false : producer->ConcurrentQueue::ImplicitProducer::template enqueue<canAlloc>(std::forward<Args>(args)...);
 	}
 	
 	template<AllocationMode canAlloc, typename It>
@@ -1875,8 +1875,8 @@ private:
 			}
 		}
 		
-		template<AllocationMode allocMode, typename... U>
-		inline bool enqueue(U&&... element)
+		template<AllocationMode allocMode, typename... Args>
+		inline bool enqueue(Args&&... args)
 		{
 			index_t currentTailIndex = this->tailIndex.load(std::memory_order_relaxed);
 			index_t newTailIndex = 1 + currentTailIndex;
@@ -1942,11 +1942,11 @@ private:
 					++pr_blockIndexSlotsUsed;
 				}
 
-				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<U>(element)...))) {
+				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<Args>(args)...))) {
 					// The constructor may throw. We want the element not to appear in the queue in
 					// that case (without corrupting the queue):
 					MOODYCAMEL_TRY {
-						new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element)...);
+						new ((*this->tailBlock)[currentTailIndex]) T(std::forward<Args>(args)...);
 					}
 					MOODYCAMEL_CATCH (...) {
 						// Revert change to the current block, but leave the new block available
@@ -1968,14 +1968,14 @@ private:
 				blockIndex.load(std::memory_order_relaxed)->front.store(pr_blockIndexFront, std::memory_order_release);
 				pr_blockIndexFront = (pr_blockIndexFront + 1) & (pr_blockIndexSize - 1);
 				
-				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<U>(element)...))) {
+				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<Args>(args)...))) {
 					this->tailIndex.store(newTailIndex, std::memory_order_release);
 					return true;
 				}
 			}
 			
 			// Enqueue
-			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element)...);
+			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<Args>(args)...);
 			
 			this->tailIndex.store(newTailIndex, std::memory_order_release);
 			return true;
@@ -2513,8 +2513,8 @@ private:
 			}
 		}
 		
-		template<AllocationMode allocMode, typename... U>
-		inline bool enqueue(U&&... element)
+		template<AllocationMode allocMode, typename... Args>
+		inline bool enqueue(Args&&... args)
 		{
 			index_t currentTailIndex = this->tailIndex.load(std::memory_order_relaxed);
 			index_t newTailIndex = 1 + currentTailIndex;
@@ -2546,10 +2546,10 @@ private:
 #endif
 				newBlock->ConcurrentQueue::Block::template reset_empty<implicit_context>();
 
-				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<U>(element)...))) {
+				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<Args>(args)...))) {
 					// May throw, try to insert now before we publish the fact that we have this new block
 					MOODYCAMEL_TRY {
-						new ((*newBlock)[currentTailIndex]) T(std::forward<U>(element)...);
+						new ((*newBlock)[currentTailIndex]) T(std::forward<Args>(args)...);
 					}
 					MOODYCAMEL_CATCH (...) {
 						rewind_block_index_tail();
@@ -2564,14 +2564,14 @@ private:
 				
 				this->tailBlock = newBlock;
 				
-				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<U>(element)...))) {
+				MOODYCAMEL_CONSTEXPR_IF (!MOODYCAMEL_NOEXCEPT_CTOR(T, U, new (static_cast<T*>(nullptr)) T(std::forward<Args>(args)...))) {
 					this->tailIndex.store(newTailIndex, std::memory_order_release);
 					return true;
 				}
 			}
 			
 			// Enqueue
-			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<U>(element)...);
+			new ((*this->tailBlock)[currentTailIndex]) T(std::forward<Args>(args)...);
 			
 			this->tailIndex.store(newTailIndex, std::memory_order_release);
 			return true;
