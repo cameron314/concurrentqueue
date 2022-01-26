@@ -91,7 +91,7 @@ The entire queue's implementation is contained in **one header**, [`concurrentqu
 Simply download and include that to use the queue. The blocking version is in a separate header,
 [`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on [`concurrentqueue.h`][concurrentqueue.h] and
 [`lightweightsemaphore.h`][lightweightsemaphore.h]. The implementation makes use of certain key C++11 features,
-so it requires a fairly recent compiler (e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic`
+so it requires a relatively recent compiler (e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic`
 and is thus not supported). The algorithm implementations themselves are platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
@@ -128,8 +128,12 @@ There's usually two versions of each method, one "explicit" version that takes a
 per-consumer token, and one "implicit" version that works without tokens. Using the explicit methods is almost
 always faster (though not necessarily by a huge factor). Apart from performance, the primary distinction between them
 is their sub-queue allocation behaviour for enqueue operations: Using the implicit enqueue methods causes an
-automatically-allocated thread-local producer sub-queue to be allocated (it is marked for reuse once the thread exits).
-Explicit producers, on the other hand, are tied directly to their tokens' lifetimes (and are also recycled as needed).
+automatically-allocated thread-local producer sub-queue to be allocated.
+Explicit producers, on the other hand, are tied directly to their tokens' lifetimes (but are recycled internally).
+
+In order to avoid the number of sub-queues growing without bound, implicit producers are marked for reuse once
+their thread exits. However, this is not supported on all platforms. If using the queue from short-lived threads,
+it is recommended to use explicit producer tokens instead.
 
 Full API (pseudocode):
 
