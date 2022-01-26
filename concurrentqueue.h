@@ -378,7 +378,14 @@ struct ConcurrentQueueDefaultTraits
 	// consumer threads exceeds the number of idle cores (in which case try 0-100).
 	// Only affects instances of the BlockingConcurrentQueue.
 	static const int MAX_SEMA_SPINS = 10000;
-	
+
+	// Whether to recycle dynamically-allocated blocks into an internal free list or
+	// not. If false, only pre-allocated blocks (controlled by the constructor
+	// arguments) will be recycled, and all others will be `free`d back to the heap.
+	// Note that blocks consumed by explicit producers are only freed on destruction
+	// of the queue (not following destruction of the token) regardless of this trait.
+	static const bool RECYCLE_ALLOCATED_BLOCKS = false;
+
 	
 #ifndef MCDBGQ_USE_RELACY
 	// Memory allocation can be customized if needed.
@@ -789,7 +796,7 @@ public:
 	// queue is fully constructed before it starts being used by other threads (this
 	// includes making the memory effects of construction visible, possibly with a
 	// memory barrier).
-	explicit ConcurrentQueue(size_t capacity = 6 * BLOCK_SIZE)
+	explicit ConcurrentQueue(size_t capacity = 32 * BLOCK_SIZE)
 		: producerListTail(nullptr),
 		producerCount(0),
 		initialBlockPoolIndex(0),
@@ -1538,7 +1545,7 @@ private:
 	struct Block
 	{
 		Block()
-			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), shouldBeOnFreeList(false), dynamicallyAllocated(true)
+			: next(nullptr), elementsCompletelyDequeued(0), freeListRefs(0), freeListNext(nullptr), dynamicallyAllocated(true)
 		{
 #ifdef MCDBGQ_TRACKMEM
 			owner = nullptr;
@@ -1655,7 +1662,6 @@ private:
 	public:
 		std::atomic<std::uint32_t> freeListRefs;
 		std::atomic<Block*> freeListNext;
-		std::atomic<bool> shouldBeOnFreeList;
 		bool dynamicallyAllocated;		// Perhaps a better name for this would be 'isNotPartOfInitialBlockPool'
 		
 #ifdef MCDBGQ_TRACKMEM
@@ -1810,12 +1816,7 @@ private:
 				auto block = this->tailBlock;
 				do {
 					auto nextBlock = block->next;
-					if (block->dynamicallyAllocated) {
-						destroy(block);
-					}
-					else {
-						this->parent->add_block_to_free_list(block);
-					}
+					this->parent->add_block_to_free_list(block);
 					block = nextBlock;
 				} while (block != this->tailBlock);
 			}
@@ -3054,7 +3055,12 @@ private:
 #ifdef MCDBGQ_TRACKMEM
 		block->owner = nullptr;
 #endif
-		freeList.add(block);
+		if (!Traits::RECYCLE_ALLOCATED_BLOCKS && block->dynamicallyAllocated) {
+			destroy(block);
+		}
+		else {
+			freeList.add(block);
+		}
 	}
 	
 	inline void add_blocks_to_free_list(Block* block)

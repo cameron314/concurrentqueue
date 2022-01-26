@@ -260,6 +260,9 @@ struct Traits : public moodycamel::ConcurrentQueueDefaultTraits
 	// block size will improve throughput (which is mostly what
 	// we're after with these benchmarks).
 	static const size_t BLOCK_SIZE = 64;
+
+	// Reuse blocks once allocated.
+	static const bool RECYCLE_ALLOCATED_BLOCKS = true;
 };
 
 
