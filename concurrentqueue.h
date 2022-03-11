@@ -218,7 +218,7 @@ namespace moodycamel { namespace details {
 // Finally, iOS/ARM doesn't have support for it either, and g++/ARM allows it to compile but it's unconfirmed to actually work
 #if (!defined(_MSC_VER) || _MSC_VER >= 1900) && (!defined(__MINGW32__) && !defined(__MINGW64__) || !defined(__WINPTHREADS_VERSION)) && (!defined(__GNUC__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)) && (!defined(__APPLE__) || !TARGET_OS_IPHONE) && !defined(__arm__) && !defined(_M_ARM) && !defined(__aarch64__)
 // Assume `thread_local` is fully supported in all other C++11 compilers/platforms
-#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED    // tentatively enabled for now; years ago several users report having problems with it on
+//#define MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED    // tentatively enabled for now; years ago several users report having problems with it on
 #endif
 #endif
 #endif
@@ -3212,12 +3212,6 @@ private:
 	
 	ProducerBase* recycle_or_create_producer(bool isExplicit)
 	{
-		bool recycled;
-		return recycle_or_create_producer(isExplicit, recycled);
-	}
-	
-	ProducerBase* recycle_or_create_producer(bool isExplicit, bool& recycled)
-	{
 #ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);
 #endif
@@ -3227,13 +3221,11 @@ private:
 				bool expected = true;
 				if (ptr->inactive.compare_exchange_strong(expected, /* desired */ false, std::memory_order_acquire, std::memory_order_relaxed)) {
 					// We caught one! It's been marked as activated, the caller can have it
-					recycled = true;
 					return ptr;
 				}
 			}
 		}
-		
-		recycled = false;
+
 		return add_producer(isExplicit ? static_cast<ProducerBase*>(create<ExplicitProducer>(this)) : create<ImplicitProducer>(this));
 	}
 	
@@ -3486,14 +3478,10 @@ private:
 			// to finish being allocated by another thread (and if we just finished allocating above, the condition will
 			// always be true)
 			if (newCount < (mainHash->capacity >> 1) + (mainHash->capacity >> 2)) {
-				bool recycled;
-				auto producer = static_cast<ImplicitProducer*>(recycle_or_create_producer(false, recycled));
+				auto producer = static_cast<ImplicitProducer*>(recycle_or_create_producer(false));
 				if (producer == nullptr) {
 					implicitProducerHashCount.fetch_sub(1, std::memory_order_relaxed);
 					return nullptr;
-				}
-				if (recycled) {
-					implicitProducerHashCount.fetch_sub(1, std::memory_order_relaxed);
 				}
 				
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
@@ -3508,11 +3496,13 @@ private:
 					auto empty = details::invalid_thread_id;
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 					auto reusable = details::invalid_thread_id2;
-					if (mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_seq_cst, std::memory_order_relaxed) ||
-						mainHash->entries[index].key.compare_exchange_strong(reusable, id, std::memory_order_seq_cst, std::memory_order_relaxed)) {
-#else
-					if (mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_seq_cst, std::memory_order_relaxed)) {
+					if (mainHash->entries[index].key.compare_exchange_strong(reusable, id, std::memory_order_seq_cst, std::memory_order_relaxed)) {
+						implicitProducerHashCount.fetch_sub(1, std::memory_order_relaxed);  // already counted as a used slot
+						mainHash->entries[index].value = producer;
+						break;
+					}
 #endif
+					if (mainHash->entries[index].key.compare_exchange_strong(empty,    id, std::memory_order_seq_cst, std::memory_order_relaxed)) {
 						mainHash->entries[index].value = producer;
 						break;
 					}
