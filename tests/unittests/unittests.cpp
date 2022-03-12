@@ -349,12 +349,14 @@ public:
 		REGISTER_TEST(index_wrapping);
 		REGISTER_TEST(subqueue_size_limit);
 		REGISTER_TEST(exceptions);
+		REGISTER_TEST(implicit_producer_churn);
 		REGISTER_TEST(test_threaded);
 		REGISTER_TEST(test_threaded_bulk);
 		REGISTER_TEST(full_api<ConcurrentQueueDefaultTraits>);
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
 		REGISTER_TEST(timed_blocking_wrappers);
+
 		//c_api/concurrentqueue
 		REGISTER_TEST(c_api_create);
 		REGISTER_TEST(c_api_enqueue);
@@ -3076,6 +3078,29 @@ public:
 			ASSERT_OR_FAIL(ThrowingMovable::destroyCount() + 1 == ThrowingMovable::ctorCount());
 		}
 		
+		return true;
+	}
+
+	bool implicit_producer_churn()
+	{
+		typedef TestTraits<4> Traits;
+
+		for (int i = 0; i != 256; ++i) {
+			std::vector<SimpleThread> threads(32);
+			ConcurrentQueue<int, Traits> q;
+			for (auto& thread : threads) {
+				SimpleThread t([&] {
+					int x;
+					for (int j = 0; j != 16; ++j) {
+						q.enqueue(0);
+						q.try_dequeue(x);
+					}
+				});
+			}
+			for (auto& thread : threads) {
+				thread.join();
+			}
+		}
 		return true;
 	}
 	
