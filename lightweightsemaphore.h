@@ -209,7 +209,11 @@ public:
 		struct timespec ts;
 		const int usecs_in_1_sec = 1000000;
 		const int nsecs_in_1_sec = 1000000000;
+#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2,30) && defined(_GNU_SOURCE)
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+#else
 		clock_gettime(CLOCK_REALTIME, &ts);
+#endif
 		ts.tv_sec += (time_t)(usecs / usecs_in_1_sec);
 		ts.tv_nsec += (long)(usecs % usecs_in_1_sec) * 1000;
 		// sem_timedwait bombs if you have more than 1e9 in tv_nsec
@@ -221,7 +225,11 @@ public:
 
 		int rc;
 		do {
+#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2,30) && defined(_GNU_SOURCE)
+			rc = sem_clockwait(&m_sema, CLOCK_MONOTONIC, &ts);
+#else
 			rc = sem_timedwait(&m_sema, &ts);
+#endif
 		} while (rc == -1 && errno == EINTR);
 		return rc == 0;
 	}
