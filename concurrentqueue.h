@@ -77,6 +77,7 @@
 #include <climits>		// for CHAR_BIT
 #include <array>
 #include <thread>		// partly for __WINPTHREADS_VERSION if on MinGW-w64 w/ POSIX threading
+#include <mutex>        // used for thread exit synchronization
 
 // Platform-specific definitions of a numeric thread ID type and an invalid value
 namespace moodycamel { namespace details {
@@ -562,6 +563,8 @@ namespace details
 	typedef RelacyThreadExitListener ThreadExitListener;
 	typedef RelacyThreadExitNotifier ThreadExitNotifier;
 #else
+	class ThreadExitNotifier;
+
 	struct ThreadExitListener
 	{
 		typedef void (*callback_t)(void*);
@@ -569,22 +572,29 @@ namespace details
 		void* userData;
 		
 		ThreadExitListener* next;		// reserved for use by the ThreadExitNotifier
+		ThreadExitNotifier* chain;		// reserved for use by the ThreadExitNotifier
 	};
-	
-	
+
 	class ThreadExitNotifier
 	{
 	public:
 		static void subscribe(ThreadExitListener* listener)
 		{
 			auto& tlsInst = instance();
+			std::lock_guard<std::mutex> guard(mutex());
 			listener->next = tlsInst.tail;
+			listener->chain = &tlsInst;
 			tlsInst.tail = listener;
 		}
 		
 		static void unsubscribe(ThreadExitListener* listener)
 		{
-			auto& tlsInst = instance();
+			std::lock_guard<std::mutex> guard(mutex());
+			if (!listener->chain) {
+				return;  // race with ~ThreadExitNotifier
+			}
+			auto& tlsInst = *listener->chain;
+			listener->chain = nullptr;
 			ThreadExitListener** prev = &tlsInst.tail;
 			for (auto ptr = tlsInst.tail; ptr != nullptr; ptr = ptr->next) {
 				if (ptr == listener) {
@@ -604,7 +614,9 @@ namespace details
 		{
 			// This thread is about to exit, let everyone know!
 			assert(this == &instance() && "If this assert fails, you likely have a buggy compiler! Change the preprocessor conditions such that MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED is no longer defined.");
+			std::lock_guard<std::mutex> guard(mutex());
 			for (auto ptr = tail; ptr != nullptr; ptr = ptr->next) {
+				ptr->chain = nullptr;
 				ptr->callback(ptr->userData);
 			}
 		}
@@ -614,6 +626,13 @@ namespace details
 		{
 			static thread_local ThreadExitNotifier notifier;
 			return notifier;
+		}
+
+		static inline std::mutex& mutex()
+		{
+			// Must be static because the ThreadExitNotifier could be destroyed while unsubscribe is called
+			static std::mutex mutex;
+			return mutex;
 		}
 		
 	private:
@@ -3521,9 +3540,6 @@ private:
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 	void implicit_producer_thread_exited(ImplicitProducer* producer)
 	{
-		// Remove from thread exit listeners
-		details::ThreadExitNotifier::unsubscribe(&producer->threadExitListener);
-		
 		// Remove from hash
 #ifdef MCDBGQ_NOLOCKFREE_IMPLICITPRODHASH
 		debug::DebugLock lock(implicitProdMutex);

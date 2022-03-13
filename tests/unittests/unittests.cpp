@@ -3089,7 +3089,7 @@ public:
 			std::vector<SimpleThread> threads(32);
 			ConcurrentQueue<int, Traits> q;
 			for (auto& thread : threads) {
-				SimpleThread t([&] {
+				thread = SimpleThread([&] {
 					int x;
 					for (int j = 0; j != 16; ++j) {
 						q.enqueue(0);
