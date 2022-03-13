@@ -26,6 +26,12 @@ extern "C" {
 #include <mach/mach.h>
 #elif defined(__unix__)
 #include <semaphore.h>
+
+#if defined(__GLIBC_PREREQ) && defined(_GNU_SOURCE)
+#if __GLIBC_PREREQ(2,30)
+#define MOODYCAMEL_LIGHTWEIGHTSEMAPHORE_MONOTONIC
+#endif
+#endif
 #endif
 
 namespace moodycamel
@@ -209,7 +215,7 @@ public:
 		struct timespec ts;
 		const int usecs_in_1_sec = 1000000;
 		const int nsecs_in_1_sec = 1000000000;
-#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2,30) && defined(_GNU_SOURCE)
+#ifdef MOODYCAMEL_LIGHTWEIGHTSEMAPHORE_MONOTONIC
 		clock_gettime(CLOCK_MONOTONIC, &ts);
 #else
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -225,7 +231,7 @@ public:
 
 		int rc;
 		do {
-#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2,30) && defined(_GNU_SOURCE)
+#ifdef MOODYCAMEL_LIGHTWEIGHTSEMAPHORE_MONOTONIC
 			rc = sem_clockwait(&m_sema, CLOCK_MONOTONIC, &ts);
 #else
 			rc = sem_timedwait(&m_sema, &ts);
