@@ -489,6 +489,7 @@ of the queue itself, followed lastly by the free-standing swap functions.
 [source]: https://github.com/cameron314/concurrentqueue
 [concurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/concurrentqueue.h
 [blockingconcurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/blockingconcurrentqueue.h
+[lightweightsemaphore.h]: https://github.com/cameron314/concurrentqueue/blob/master/lightweightsemaphore.h
 [unittest-src]: https://github.com/cameron314/concurrentqueue/tree/master/tests/unittests
 [benchmarks]: http://moodycamel.com/blog/2014/a-fast-general-purpose-lock-free-queue-for-c++#benchmarks
 [benchmark-src]: https://github.com/cameron314/concurrentqueue/tree/master/benchmarks
