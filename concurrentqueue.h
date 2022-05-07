@@ -2018,7 +2018,7 @@ private:
 					// block size (in order to get a correct signed block count offset in all cases):
 					auto headBase = localBlockIndex->entries[localBlockIndexHead].base;
 					auto blockBaseIndex = index & ~static_cast<index_t>(BLOCK_SIZE - 1);
-					auto offset = static_cast<size_t>(static_cast<typename std::make_signed<index_t>::type>(blockBaseIndex - headBase) / BLOCK_SIZE);
+					auto offset = static_cast<size_t>(static_cast<typename std::make_signed<index_t>::type>(blockBaseIndex - headBase) / static_cast<typename std::make_signed<index_t>::type>(BLOCK_SIZE));
 					auto block = localBlockIndex->entries[(localBlockIndexHead + offset) & (localBlockIndex->size - 1)].block;
 					
 					// Dequeue
@@ -2279,7 +2279,7 @@ private:
 					
 					auto headBase = localBlockIndex->entries[localBlockIndexHead].base;
 					auto firstBlockBaseIndex = firstIndex & ~static_cast<index_t>(BLOCK_SIZE - 1);
-					auto offset = static_cast<size_t>(static_cast<typename std::make_signed<index_t>::type>(firstBlockBaseIndex - headBase) / BLOCK_SIZE);
+					auto offset = static_cast<size_t>(static_cast<typename std::make_signed<index_t>::type>(firstBlockBaseIndex - headBase) / static_cast<typename std::make_signed<index_t>::type>(BLOCK_SIZE));
 					auto indexIndex = (localBlockIndexHead + offset) & (localBlockIndex->size - 1);
 					
 					// Iterate the blocks and dequeue
@@ -2962,7 +2962,7 @@ private:
 			assert(tailBase != INVALID_BLOCK_BASE);
 			// Note: Must use division instead of shift because the index may wrap around, causing a negative
 			// offset, whose negativity we want to preserve
-			auto offset = static_cast<size_t>(static_cast<typename std::make_signed<index_t>::type>(index - tailBase) / BLOCK_SIZE);
+			auto offset = static_cast<size_t>(static_cast<typename std::make_signed<index_t>::type>(index - tailBase) / static_cast<typename std::make_signed<index_t>::type>(BLOCK_SIZE));
 			size_t idx = (tail + offset) & (localBlockIndex->capacity - 1);
 			assert(localBlockIndex->index[idx]->key.load(std::memory_order_relaxed) == index && localBlockIndex->index[idx]->value.load(std::memory_order_relaxed) != nullptr);
 			return idx;
@@ -3415,7 +3415,7 @@ private:
 			// Look for the id in this hash
 			auto index = hashedId;
 			while (true) {		// Not an infinite loop because at least one slot is free in the hash table
-				index &= hash->capacity - 1;
+				index &= hash->capacity - 1u;
 				
 				auto probedKey = hash->entries[index].key.load(std::memory_order_relaxed);
 				if (probedKey == id) {
@@ -3428,7 +3428,7 @@ private:
 					if (hash != mainHash) {
 						index = hashedId;
 						while (true) {
-							index &= mainHash->capacity - 1;
+							index &= mainHash->capacity - 1u;
 							auto empty = details::invalid_thread_id;
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 							auto reusable = details::invalid_thread_id2;
@@ -3464,7 +3464,7 @@ private:
 				// locked block).
 				mainHash = implicitProducerHash.load(std::memory_order_acquire);
 				if (newCount >= (mainHash->capacity >> 1)) {
-					auto newCapacity = mainHash->capacity << 1;
+					size_t newCapacity = mainHash->capacity << 1;
 					while (newCount >= (newCapacity >> 1)) {
 						newCapacity <<= 1;
 					}
@@ -3511,7 +3511,7 @@ private:
 				
 				auto index = hashedId;
 				while (true) {
-					index &= mainHash->capacity - 1;
+					index &= mainHash->capacity - 1u;
 					auto empty = details::invalid_thread_id;
 #ifdef MOODYCAMEL_CPP11_THREAD_LOCAL_SUPPORTED
 					auto reusable = details::invalid_thread_id2;
@@ -3555,7 +3555,7 @@ private:
 		for (; hash != nullptr; hash = hash->prev) {
 			auto index = hashedId;
 			do {
-				index &= hash->capacity - 1;
+				index &= hash->capacity - 1u;
 				probedKey = id;
 				if (hash->entries[index].key.compare_exchange_strong(probedKey, details::invalid_thread_id2, std::memory_order_seq_cst, std::memory_order_relaxed)) {
 					break;
