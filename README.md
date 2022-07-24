@@ -276,7 +276,7 @@ in order to obtain an effective number of pre-allocated element slots is non-obv
 
 First, be aware that the count passed is rounded up to the next multiple of the block size. Note that the
 default block size is 32 (this can be changed via the traits). Second, once a slot in a block has been
-enqueued to, that slot cannot be re-used until the rest of the block has completely been completely filled
+enqueued to, that slot cannot be re-used until the rest of the block has been completely filled
 up and then completely emptied. This affects the number of blocks you need in order to account for the
 overhead of partially-filled blocks. Third, each producer (whether implicit or explicit) claims and recycles
 blocks in a different manner, which again affects the number of blocks you need to account for a desired number of
@@ -324,7 +324,7 @@ so be sure to reserve enough capacity in the target container first if you do th
 The guarantees are presently as follows:
 - Enqueue operations are rolled back completely if an exception is thrown from an element's constructor.
   For bulk enqueue operations, this means that elements are copied instead of moved (in order to avoid
-  having only some of the objects be moved in the event of an exception). Non-bulk enqueues always use
+  having only some objects moved in the event of an exception). Non-bulk enqueues always use
   the move constructor if one is available.
 - If the assignment operator throws during a dequeue operation (both single and bulk), the element(s) are
   considered dequeued regardless. In such a case, the dequeued elements are all properly destructed before
