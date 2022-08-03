@@ -5,6 +5,7 @@ from conans import ConanFile
 
 class ConcurrentQueueConan(ConanFile):
     name = "ConcurrentQueue"
+    version = "1.0.3"
     description = " A fast multi-producer, multi-consumer lock-free concurrent queue "
     topics = ("conan," "ConcurrentQueue", "lockfree", "queue")
     url = "https://github.com/cameron314/concurrentqueue"
@@ -12,7 +13,7 @@ class ConcurrentQueueConan(ConanFile):
     author = "Cameron <cameron@moodycamel.com>"
     license = "Simplified BSD"
     exports = ["LICENSE.md"]
-    exports_sources = ["src/*"]
+    exports_sources = ["*"]
     no_copy_source = True
 
     def package(self):
