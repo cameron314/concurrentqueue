@@ -96,13 +96,13 @@ struct MallocTrackingTraits : public ConcurrentQueueDefaultTraits
 	static inline void free(void* ptr) { tracking_allocator::free(ptr); }
 };
 
-template<std::size_t BlockSize = ConcurrentQueueDefaultTraits::BLOCK_SIZE, std::size_t InitialIndexSize = ConcurrentQueueDefaultTraits::EXPLICIT_INITIAL_INDEX_SIZE, bool RecycleBlocks = ConcurrentQueueDefaultTraits::RECYCLE_ALLOCATED_BLOCKS>
+template<std::size_t BlockSize = ConcurrentQueueDefaultTraits::CQ_BLOCK_SIZE, std::size_t InitialIndexSize = ConcurrentQueueDefaultTraits::EXPLICIT_INITIAL_INDEX_SIZE, bool RecycleBlocks = ConcurrentQueueDefaultTraits::RECYCLE_ALLOCATED_BLOCKS>
 struct TestTraits : public MallocTrackingTraits
 {
 	typedef std::size_t size_t;
 	typedef uint64_t index_t;
 	
-	static const size_t BLOCK_SIZE = BlockSize;
+	static const size_t CQ_BLOCK_SIZE = BlockSize;
 	static const size_t EXPLICIT_INITIAL_INDEX_SIZE = InitialIndexSize;
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = InitialIndexSize * 2;
 	static const bool RECYCLE_ALLOCATED_BLOCKS = RecycleBlocks;
@@ -131,7 +131,7 @@ struct ExtraSmallIndexTraits : public MallocTrackingTraits
 
 struct LargeTraits : public MallocTrackingTraits
 {
-	static const size_t BLOCK_SIZE = 128;
+	static const size_t CQ_BLOCK_SIZE = 128;
 	static const size_t INITIAL_IMPLICIT_PRODUCER_HASH_SIZE = 128;
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = 128;
 };
@@ -1354,7 +1354,7 @@ public:
 		{
 			// Implicit
 			const int MAX_THREADS = 48;
-			ConcurrentQueue<int, Traits> q(Traits::BLOCK_SIZE * (MAX_THREADS + 1));
+			ConcurrentQueue<int, Traits> q(Traits::CQ_BLOCK_SIZE * (MAX_THREADS + 1));
 			ASSERT_OR_FAIL(Traits::malloc_count() == 1);		// Initial block pool
 			
 			SimpleThread t0([&]() { q.enqueue(0); });
@@ -2392,7 +2392,7 @@ public:
 	
 	struct SizeLimitTraits : public MallocTrackingTraits
 	{
-		static const size_t BLOCK_SIZE = 2;
+		static const size_t CQ_BLOCK_SIZE = 2;
 		static const size_t MAX_SUBQUEUE_SIZE = 5;		// Will round up to 6 because of block size
 	};
 	
