@@ -36,7 +36,7 @@ public:
 	typedef typename ConcurrentQueue::size_t size_t;
 	typedef typename std::make_signed<size_t>::type ssize_t;
 	
-	static const size_t BLOCK_SIZE = ConcurrentQueue::BLOCK_SIZE;
+	static const size_t CQ_BLOCK_SIZE = ConcurrentQueue::CQ_BLOCK_SIZE;
 	static const size_t EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD = ConcurrentQueue::EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD;
 	static const size_t EXPLICIT_INITIAL_INDEX_SIZE = ConcurrentQueue::EXPLICIT_INITIAL_INDEX_SIZE;
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = ConcurrentQueue::IMPLICIT_INITIAL_INDEX_SIZE;
@@ -55,7 +55,7 @@ public:
 	// queue is fully constructed before it starts being used by other threads (this
 	// includes making the memory effects of construction visible, possibly with a
 	// memory barrier).
-	explicit BlockingConcurrentQueue(size_t capacity = 6 * BLOCK_SIZE)
+	explicit BlockingConcurrentQueue(size_t capacity = 6 * CQ_BLOCK_SIZE)
 		: inner(capacity), sema(create<LightweightSemaphore, ssize_t, int>(0, (int)Traits::MAX_SEMA_SPINS), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
 	{
 		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
