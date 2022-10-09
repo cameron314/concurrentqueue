@@ -442,6 +442,16 @@ You can download and install `moodycamel::ConcurrentQueue` using the [vcpkg](htt
 	
 The `moodycamel::ConcurrentQueue` port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
 
+## Using apt on Debian 11 (Linux)
+You can download and install 'moodycamel::ConcurrentQueue' in one step using aptitutde:
+
+    apt install libconcurrentqueue-dev
+
+Include one or both of the following include lines in your C++ source code:
+
+    #include <concurrentqueue/blockingconcurrentqueue.h>
+    #include <concurrentqueue/concurrentqueue.h>
+
 ## License
 
 I'm releasing the source of this repository (with the exception of third-party code, i.e. the Boost queue
