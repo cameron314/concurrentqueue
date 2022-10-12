@@ -149,7 +149,7 @@ for (int i = 0; i != ConsumerCount; ++i) {
 				itemsLeft = true;
 				consumeItem(item);
 			}
-		} while (itemsLeft || doneConsumers.fetch_add(1, std::memory_order_acq_rel) + 1 == ConsumerCount);
+		} while (itemsLeft || doneConsumers.fetch_add(1, std::memory_order_acq_rel) + 1 == ConsumerCount); });
 		// The condition above is a bit tricky, but it's necessary to ensure that the
 		// last consumer sees the memory effects of all the other consumers before it
 		// calls try_dequeue for the last time
