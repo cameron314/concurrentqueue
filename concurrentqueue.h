@@ -1523,8 +1523,10 @@ private:
 			// something non-zero, then the refcount increment is done by the other thread) -- so, if the CAS
 			// to add the node to the actual list fails, decrease the refcount and leave the add operation to
 			// the next thread who puts the refcount back at zero (which could be us, hence the loop).
-			auto head = freeListHead.load(std::memory_order_relaxed);
+
 			while (true) {
+				auto head = freeListHead.load(std::memory_order_relaxed);
+
 				node->freeListNext.store(head, std::memory_order_relaxed);
 				node->freeListRefs.store(1, std::memory_order_release);
 				if (!freeListHead.compare_exchange_strong(head, node, std::memory_order_release, std::memory_order_relaxed)) {
