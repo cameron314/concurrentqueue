@@ -303,6 +303,15 @@ If these formulas seem rather inconvenient, you can use the constructor overload
 number of elements (`N`) and the maximum number of explicit and implicit producers directly, and let it do the
 computation for you.
 
+In addition to blocks, there are other internal data structures that require allocating memory if they need to resize (grow).
+If using `try_enqueue` exclusively, the initial sizes may be exceeded, causing subsequent `try_enqueue` operations to fail.
+Specifically, the `INITIAL_IMPLICIT_PRODUCER_HASH_SIZE` trait limits the number of implicit producers that can be active at once
+before the internal hash needs resizing. Along the same lines, the `IMPLICIT_INITIAL_INDEX_SIZE` trait limits the number of
+unconsumed elements that an implicit producer can insert before its internal hash needs resizing. Similarly, the
+`EXPLICIT_INITIAL_INDEX_SIZE` trait limits the number of unconsumed elements that an explicit producer can insert before its
+internal hash needs resizing. In order to avoid hitting these limits when using `try_enqueue`, it is crucial to adjust the
+initial sizes in the traits appropriately, in addition to sizing the number of blocks properly as outlined above.
+
 Finally, it's important to note that because the queue is only eventually consistent and takes advantage of
 weak memory ordering for speed, there's always a possibility that under contention `try_enqueue` will fail
 even if the queue is correctly pre-sized for the desired number of elements. (e.g. A given thread may think that
