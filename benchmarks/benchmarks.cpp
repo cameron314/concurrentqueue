@@ -29,7 +29,7 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-// this uses an old version os OS memory fences on OSX
+// this uses an old version of OS memory fences on OSX
 #include "tbbqueue.h"
 #pragma clang diagnostic pop
 
