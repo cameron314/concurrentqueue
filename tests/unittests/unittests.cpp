@@ -96,7 +96,7 @@ struct MallocTrackingTraits : public ConcurrentQueueDefaultTraits
 	static inline void free(void* ptr) { tracking_allocator::free(ptr); }
 };
 
-template<std::size_t BlockSize = ConcurrentQueueDefaultTraits::BLOCK_SIZE, std::size_t InitialIndexSize = ConcurrentQueueDefaultTraits::EXPLICIT_INITIAL_INDEX_SIZE>
+template<std::size_t BlockSize = ConcurrentQueueDefaultTraits::BLOCK_SIZE, std::size_t InitialIndexSize = ConcurrentQueueDefaultTraits::EXPLICIT_INITIAL_INDEX_SIZE, bool RecycleBlocks = ConcurrentQueueDefaultTraits::RECYCLE_ALLOCATED_BLOCKS>
 struct TestTraits : public MallocTrackingTraits
 {
 	typedef std::size_t size_t;
@@ -105,6 +105,7 @@ struct TestTraits : public MallocTrackingTraits
 	static const size_t BLOCK_SIZE = BlockSize;
 	static const size_t EXPLICIT_INITIAL_INDEX_SIZE = InitialIndexSize;
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = InitialIndexSize * 2;
+	static const bool RECYCLE_ALLOCATED_BLOCKS = RecycleBlocks;
 	
 	static inline void reset() { _malloc_count() = 0; _free_count() = 0; }
 	static inline std::atomic<int>& _malloc_count() { static std::atomic<int> c; return c; }
@@ -371,12 +372,14 @@ public:
 		REGISTER_TEST(index_wrapping);
 		REGISTER_TEST(subqueue_size_limit);
 		REGISTER_TEST(exceptions);
+		REGISTER_TEST(implicit_producer_churn);
 		REGISTER_TEST(test_threaded);
 		REGISTER_TEST(test_threaded_bulk);
 		REGISTER_TEST(full_api<ConcurrentQueueDefaultTraits>);
 		REGISTER_TEST(full_api<SmallIndexTraits>);
 		REGISTER_TEST(blocking_wrappers);
 		REGISTER_TEST(timed_blocking_wrappers);
+
 		//c_api/concurrentqueue
 		REGISTER_TEST(c_api_create);
 		REGISTER_TEST(c_api_enqueue);
@@ -1014,8 +1017,10 @@ public:
 	bool block_alloc()
 	{
 		typedef TestTraits<2> Traits;
+		typedef TestTraits<2, 32, true> RecycleTraits;
 		Traits::reset();
 		
+		// Explicit
 		{
 			ConcurrentQueue<int, Traits> q(7);
 			ASSERT_OR_FAIL(q.initialBlockPoolSize == 4);
@@ -1023,37 +1028,41 @@ public:
 			ASSERT_OR_FAIL(Traits::malloc_count() == 1);
 			ASSERT_OR_FAIL(Traits::free_count() == 0);
 			
-			ProducerToken tok(q);
-			ASSERT_OR_FAIL(Traits::malloc_count() == 3);		// one for producer, one for its block index
-			ASSERT_OR_FAIL(Traits::free_count() == 0);
-			
-			// Enqueue one item too many (force extra block allocation)
-			for (int i = 0; i != 9; ++i) {
-				ASSERT_OR_FAIL(q.enqueue(tok, i));
+			{
+				ProducerToken tok(q);
+				ASSERT_OR_FAIL(Traits::malloc_count() == 3);		// one for producer, one for its block index
+				ASSERT_OR_FAIL(Traits::free_count() == 0);
+				
+				// Enqueue one item too many (force extra block allocation)
+				for (int i = 0; i != 9; ++i) {
+					ASSERT_OR_FAIL(q.enqueue(tok, i));
+				}
+				
+				ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+				ASSERT_OR_FAIL(Traits::free_count() == 0);
+				
+				// Still room for one more...
+				ASSERT_OR_FAIL(q.enqueue(tok, 9));
+				ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+				ASSERT_OR_FAIL(Traits::free_count() == 0);
+				
+				// No more room without further allocations
+				ASSERT_OR_FAIL(!q.try_enqueue(tok, 10));
+				ASSERT_OR_FAIL(Traits::malloc_count() == 4);
+				ASSERT_OR_FAIL(Traits::free_count() == 0);
+				
+				// Check items were enqueued properly
+				int item;
+				for (int i = 0; i != 10; ++i) {
+					ASSERT_OR_FAIL(q.try_dequeue_from_producer(tok, item));
+					ASSERT_OR_FAIL(item == i);
+				}
+				
+				// Queue should be empty, but not freed
+				ASSERT_OR_FAIL(!q.try_dequeue_from_producer(tok, item));
+				ASSERT_OR_FAIL(Traits::free_count() == 0);
 			}
-			
-			ASSERT_OR_FAIL(Traits::malloc_count() == 4);
-			ASSERT_OR_FAIL(Traits::free_count() == 0);
-			
-			// Still room for one more...
-			ASSERT_OR_FAIL(q.enqueue(tok, 9));
-			ASSERT_OR_FAIL(Traits::malloc_count() == 4);
-			ASSERT_OR_FAIL(Traits::free_count() == 0);
-			
-			// No more room without further allocations
-			ASSERT_OR_FAIL(!q.try_enqueue(tok, 10));
-			ASSERT_OR_FAIL(Traits::malloc_count() == 4);
-			ASSERT_OR_FAIL(Traits::free_count() == 0);
-			
-			// Check items were enqueued properly
-			int item;
-			for (int i = 0; i != 10; ++i) {
-				ASSERT_OR_FAIL(q.try_dequeue_from_producer(tok, item));
-				ASSERT_OR_FAIL(item == i);
-			}
-			
-			// Queue should be empty, but not freed
-			ASSERT_OR_FAIL(!q.try_dequeue_from_producer(tok, item));
+			// Explicit producers are recycled, so block should still be allocated
 			ASSERT_OR_FAIL(Traits::free_count() == 0);
 		}
 		
@@ -1098,13 +1107,58 @@ public:
 				ASSERT_OR_FAIL(item == i);
 			}
 			
-			// Queue should be empty, but not freed
+			// Queue should be empty, and extra block freed
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
-			ASSERT_OR_FAIL(Traits::free_count() == 0);
+			ASSERT_OR_FAIL(Traits::free_count() == 1);
 		}
 		
 		ASSERT_OR_FAIL(Traits::malloc_count() == 4);
 		ASSERT_OR_FAIL(Traits::free_count() == 4);
+		
+		// Implicit
+		RecycleTraits::reset();
+		{
+			ConcurrentQueue<int, RecycleTraits> q(7);
+			ASSERT_OR_FAIL(q.initialBlockPoolSize == 4);
+			
+			ASSERT_OR_FAIL(q.enqueue(39));
+			
+			ASSERT_OR_FAIL(RecycleTraits::malloc_count() == 3);		// one for producer, one for its block index
+			ASSERT_OR_FAIL(RecycleTraits::free_count() == 0);
+			
+			// Enqueue one item too many (force extra block allocation)
+			for (int i = 0; i != 8; ++i) {
+				ASSERT_OR_FAIL(q.enqueue(i));
+			}
+			
+			ASSERT_OR_FAIL(RecycleTraits::malloc_count() == 4);
+			ASSERT_OR_FAIL(RecycleTraits::free_count() == 0);
+			
+			// Still room for one more...
+			ASSERT_OR_FAIL(q.enqueue(8));
+			ASSERT_OR_FAIL(RecycleTraits::malloc_count() == 4);
+			ASSERT_OR_FAIL(RecycleTraits::free_count() == 0);
+			
+			// No more room without further allocations
+			ASSERT_OR_FAIL(!q.try_enqueue(9));
+			ASSERT_OR_FAIL(RecycleTraits::malloc_count() == 4);
+			ASSERT_OR_FAIL(RecycleTraits::free_count() == 0);
+			
+			// Check items were enqueued properly
+			int item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item == 39);
+			for (int i = 0; i != 9; ++i) {
+				ASSERT_OR_FAIL(q.try_dequeue(item));
+				ASSERT_OR_FAIL(item == i);
+			}
+			
+			// Queue should be empty, but extra block not freed
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+			ASSERT_OR_FAIL(RecycleTraits::free_count() == 0);
+		}
+		ASSERT_OR_FAIL(RecycleTraits::malloc_count() == 4);
+		ASSERT_OR_FAIL(RecycleTraits::free_count() == 4);
 
 		// Super-aligned
 		Traits::reset();
@@ -1148,9 +1202,9 @@ public:
 				ASSERT_OR_FAIL(VeryAligned::errors == 0);
 			}
 
-			// Queue should be empty, but not freed
+			// Queue should be empty, and extra block freed
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
-			ASSERT_OR_FAIL(Traits::free_count() == 0);
+			ASSERT_OR_FAIL(Traits::free_count() == 1);
 			ASSERT_OR_FAIL(VeryAligned::errors == 0);
 		}
 
@@ -3049,6 +3103,29 @@ public:
 		
 		return true;
 	}
+
+	bool implicit_producer_churn()
+	{
+		typedef TestTraits<4> Traits;
+
+		for (int i = 0; i != 256; ++i) {
+			std::vector<SimpleThread> threads(32);
+			ConcurrentQueue<int, Traits> q;
+			for (auto& thread : threads) {
+				thread = SimpleThread([&] {
+					int x;
+					for (int j = 0; j != 16; ++j) {
+						q.enqueue(0);
+						q.try_dequeue(x);
+					}
+				});
+			}
+			for (auto& thread : threads) {
+				thread.join();
+			}
+		}
+		return true;
+	}
 	
 	bool test_threaded()
 	{
@@ -3726,9 +3803,9 @@ public:
 		
 		// is_lock_free()
 		{
-			bool lockFree = ConcurrentQueue<Foo, Traits>::is_lock_free();
+			constexpr bool lockFree = ConcurrentQueue<Foo, Traits>::is_lock_free();
 #if defined(__amd64__) || defined(_M_X64) || defined(__x86_64__) || defined(_M_IX86) || defined(__i386__) || defined(_M_PPC) || defined(__powerpc__)
-			ASSERT_OR_FAIL(lockFree);
+			static_assert(lockFree, "is_lock_free should be true");
 #else
 			(void)lockFree;
 #endif

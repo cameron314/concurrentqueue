@@ -26,7 +26,13 @@
 #include "lockbasedqueue.h"
 #include "simplelockfree.h"
 #include "boostqueue.h"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+// this uses an old version of OS memory fences on OSX
 #include "tbbqueue.h"
+#pragma clang diagnostic pop
+
 #include "stdqueue.h"
 #include "dlibqueue.h"
 #include "../tests/common/simplethread.h"
@@ -260,6 +266,9 @@ struct Traits : public moodycamel::ConcurrentQueueDefaultTraits
 	// block size will improve throughput (which is mostly what
 	// we're after with these benchmarks).
 	static const size_t BLOCK_SIZE = 64;
+
+	// Reuse blocks once allocated.
+	static const bool RECYCLE_ALLOCATED_BLOCKS = true;
 };
 
 
@@ -963,7 +972,6 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 	
 	case bench_only_enqueue_bulk: {
 		TQueue q;
-		item_t item = 1;
 		item_t item_rec;
 		std::vector<counter_t> data;
 		for (counter_t i = 0; i != BULK_BATCH_SIZE; ++i) {
@@ -1024,7 +1032,6 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 	case bench_mostly_enqueue_bulk: {
 		// Measures the average speed of enqueueing in bulk under light contention
 		TQueue q;
-		item_t item = 1;
 		item_t item_rec;
 		std::vector<counter_t> data;
 		for (counter_t i = 0; i != BULK_BATCH_SIZE; ++i) {
@@ -1100,7 +1107,6 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 	case bench_only_dequeue_bulk: {
 		// Measures the average speed of dequeueing in bulk when all threads are consumers
 		TQueue q;
-		item_t item = 1;
 		item_t item_rec;
 		{
 			// Fill up the queue first
@@ -1191,7 +1197,6 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 	case bench_mostly_dequeue_bulk: {
 		// Measures the average speed of dequeueing in bulk under light contention
 		TQueue q;
-		item_t item = 1;
 		item_t item_rec;
 		auto enqueueThreads = std::max(1, nthreads / 4);
 		out_opCount = maxOps * BULK_BATCH_SIZE * enqueueThreads;
@@ -1502,11 +1507,10 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 		// (that eight separate threads had at one point enqueued to)
 		out_opCount = maxOps * 2 * nthreads;
 		TQueue q;
-		item_t item = 1;
 		item_t item_rec;
 		if (nthreads == 1) {
 			// No contention -- measures speed of immediately dequeueing the item that was just enqueued
-			int item;
+			int item = 0;
 			auto start = getSystemTime();
 			if (useTokens) {
 				typename TQueue::producer_token_t prodTok(q);
@@ -1535,7 +1539,7 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 					while (ready.load(std::memory_order_relaxed) != nthreads)
 						continue;
 					
-					int item;
+					int item = 0;
 					auto start = getSystemTime();
 					if (useTokens) {
 						typename TQueue::producer_token_t prodTok(q);
@@ -1582,7 +1586,7 @@ double runBenchmark(benchmark_type_t benchmark, int nthreads, bool useTokens, un
 				auto start = getSystemTime();
 				if (id < 2) {
 					// Alternate
-					int item;
+					int item = 0;
 					if (useTokens) {
 						typename TQueue::consumer_token_t consTok(q);
 						typename TQueue::producer_token_t prodTok(q);
@@ -2017,7 +2021,7 @@ int main(int argc, char** argv)
 					int maxThreads = QUEUE_MAX_THREADS[queue];
 					std::vector<BenchmarkResult> results(ITERATIONS);
 					for (int i = 0; i < ITERATIONS; ++i) {
-						double elapsed;
+						double elapsed = 0.0;
 						counter_t ops = 0;
 						
 						switch ((queue_id_t)queue) {

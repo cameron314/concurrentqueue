@@ -91,7 +91,7 @@ The entire queue's implementation is contained in **one header**, [`concurrentqu
 Simply download and include that to use the queue. The blocking version is in a separate header,
 [`blockingconcurrentqueue.h`][blockingconcurrentqueue.h], that depends on [`concurrentqueue.h`][concurrentqueue.h] and
 [`lightweightsemaphore.h`][lightweightsemaphore.h]. The implementation makes use of certain key C++11 features,
-so it requires a fairly recent compiler (e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic`
+so it requires a relatively recent compiler (e.g. VS2012+ or g++ 4.8; note that g++ 4.6 has a known bug with `std::atomic`
 and is thus not supported). The algorithm implementations themselves are platform independent.
 
 Use it like you would any other templated queue, with the exception that you can use
@@ -99,14 +99,16 @@ it from many threads at once :-)
 
 Simple example:
 
-    #include "concurrentqueue.h"
-    
-    moodycamel::ConcurrentQueue<int> q;
-    q.enqueue(25);
-    
-    int item;
-    bool found = q.try_dequeue(item);
-    assert(found && item == 25);
+```C++
+#include "concurrentqueue.h"
+
+moodycamel::ConcurrentQueue<int> q;
+q.enqueue(25);
+
+int item;
+bool found = q.try_dequeue(item);
+assert(found && item == 25);
+```
 
 Description of basic methods:
 - `ConcurrentQueue(size_t initialSizeEstimate)`
@@ -128,8 +130,12 @@ There's usually two versions of each method, one "explicit" version that takes a
 per-consumer token, and one "implicit" version that works without tokens. Using the explicit methods is almost
 always faster (though not necessarily by a huge factor). Apart from performance, the primary distinction between them
 is their sub-queue allocation behaviour for enqueue operations: Using the implicit enqueue methods causes an
-automatically-allocated thread-local producer sub-queue to be allocated (it is marked for reuse once the thread exits).
-Explicit producers, on the other hand, are tied directly to their tokens' lifetimes (and are also recycled as needed).
+automatically-allocated thread-local producer sub-queue to be allocated.
+Explicit producers, on the other hand, are tied directly to their tokens' lifetimes (but are recycled internally).
+
+In order to avoid the number of sub-queues growing without bound, implicit producers are marked for reuse once
+their thread exits. However, this is not supported on all platforms. If using the queue from short-lived threads,
+it is recommended to use explicit producer tokens instead.
 
 Full API (pseudocode):
 
@@ -176,31 +182,33 @@ in use either, but it can be easier to coordinate the cleanup.)
 
 Blocking example:
 
-    #include "blockingconcurrentqueue.h"
-    
-    moodycamel::BlockingConcurrentQueue<int> q;
-    std::thread producer([&]() {
-        for (int i = 0; i != 100; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(i % 10));
-            q.enqueue(i);
-        }
-    });
-    std::thread consumer([&]() {
-        for (int i = 0; i != 100; ++i) {
-            int item;
-            q.wait_dequeue(item);
+```C++
+#include "blockingconcurrentqueue.h"
+
+moodycamel::BlockingConcurrentQueue<int> q;
+std::thread producer([&]() {
+    for (int i = 0; i != 100; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(i % 10));
+        q.enqueue(i);
+    }
+});
+std::thread consumer([&]() {
+    for (int i = 0; i != 100; ++i) {
+        int item;
+        q.wait_dequeue(item);
+        assert(item == i);
+        
+        if (q.wait_dequeue_timed(item, std::chrono::milliseconds(5))) {
+            ++i;
             assert(item == i);
-            
-            if (q.wait_dequeue_timed(item, std::chrono::milliseconds(5))) {
-                ++i;
-                assert(item == i);
-            }
         }
-    });
-    producer.join();
-    consumer.join();
-    
-    assert(q.size_approx() == 0);
+    }
+});
+producer.join();
+consumer.join();
+
+assert(q.size_approx() == 0);
+```
 
 ## Advanced features
 
@@ -212,15 +220,17 @@ You can create a consumer token and/or a producer token for each thread or task
 (tokens themselves are not thread-safe), and use the methods that accept a token
 as their first parameter:
 
-    moodycamel::ConcurrentQueue<int> q;
-    
-    moodycamel::ProducerToken ptok(q);
-    q.enqueue(ptok, 17);
-    
-    moodycamel::ConsumerToken ctok(q);
-    int item;
-    q.try_dequeue(ctok, item);
-    assert(item == 17);
+```C++
+moodycamel::ConcurrentQueue<int> q;
+
+moodycamel::ProducerToken ptok(q);
+q.enqueue(ptok, 17);
+
+moodycamel::ConsumerToken ctok(q);
+int item;
+q.try_dequeue(ctok, item);
+assert(item == 17);
+```
 
 If you happen to know which producer you want to consume from (e.g. in
 a single-producer, multi-consumer scenario), you can use the `try_dequeue_from_producer`
@@ -249,16 +259,18 @@ Thanks to the [novel design][blog] of the queue, it's just as easy to enqueue/de
 items as it is to do one at a time. This means that overhead can be cut drastically for
 bulk operations. Example syntax:
 
-    moodycamel::ConcurrentQueue<int> q;
+```C++
+moodycamel::ConcurrentQueue<int> q;
 
-    int items[] = { 1, 2, 3, 4, 5 };
-    q.enqueue_bulk(items, 5);
-    
-    int results[5];     // Could also be any iterator
-    size_t count = q.try_dequeue_bulk(results, 5);
-    for (size_t i = 0; i != count; ++i) {
-        assert(results[i] == items[i]);
-    }
+int items[] = { 1, 2, 3, 4, 5 };
+q.enqueue_bulk(items, 5);
+
+int results[5];     // Could also be any iterator
+size_t count = q.try_dequeue_bulk(results, 5);
+for (size_t i = 0; i != count; ++i) {
+    assert(results[i] == items[i]);
+}
+```
 
 #### Preallocation (correctly using `try_enqueue`)
 
@@ -272,7 +284,7 @@ in order to obtain an effective number of pre-allocated element slots is non-obv
 
 First, be aware that the count passed is rounded up to the next multiple of the block size. Note that the
 default block size is 32 (this can be changed via the traits). Second, once a slot in a block has been
-enqueued to, that slot cannot be re-used until the rest of the block has completely been completely filled
+enqueued to, that slot cannot be re-used until the rest of the block has been completely filled
 up and then completely emptied. This affects the number of blocks you need in order to account for the
 overhead of partially-filled blocks. Third, each producer (whether implicit or explicit) claims and recycles
 blocks in a different manner, which again affects the number of blocks you need to account for a desired number of
@@ -285,19 +297,34 @@ integer division (in order for `ceil()` to work).
 
 For explicit producers (using tokens to enqueue):
 
-    (ceil(N / BLOCK_SIZE) + 1) * MAX_NUM_PRODUCERS * BLOCK_SIZE
+```C++
+(ceil(N / BLOCK_SIZE) + 1) * MAX_NUM_PRODUCERS * BLOCK_SIZE
+```
 
 For implicit producers (no tokens):
 
-    (ceil(N / BLOCK_SIZE) - 1 + 2 * MAX_NUM_PRODUCERS) * BLOCK_SIZE
+```C++
+(ceil(N / BLOCK_SIZE) - 1 + 2 * MAX_NUM_PRODUCERS) * BLOCK_SIZE
+```
 
 When using mixed producer types:
 
-    ((ceil(N / BLOCK_SIZE) - 1) * (MAX_EXPLICIT_PRODUCERS + 1) + 2 * (MAX_IMPLICIT_PRODUCERS + MAX_EXPLICIT_PRODUCERS)) * BLOCK_SIZE
+```C++
+((ceil(N / BLOCK_SIZE) - 1) * (MAX_EXPLICIT_PRODUCERS + 1) + 2 * (MAX_IMPLICIT_PRODUCERS + MAX_EXPLICIT_PRODUCERS)) * BLOCK_SIZE
+```
 
 If these formulas seem rather inconvenient, you can use the constructor overload that accepts the minimum
 number of elements (`N`) and the maximum number of explicit and implicit producers directly, and let it do the
 computation for you.
+
+In addition to blocks, there are other internal data structures that require allocating memory if they need to resize (grow).
+If using `try_enqueue` exclusively, the initial sizes may be exceeded, causing subsequent `try_enqueue` operations to fail.
+Specifically, the `INITIAL_IMPLICIT_PRODUCER_HASH_SIZE` trait limits the number of implicit producers that can be active at once
+before the internal hash needs resizing. Along the same lines, the `IMPLICIT_INITIAL_INDEX_SIZE` trait limits the number of
+unconsumed elements that an implicit producer can insert before its internal hash needs resizing. Similarly, the
+`EXPLICIT_INITIAL_INDEX_SIZE` trait limits the number of unconsumed elements that an explicit producer can insert before its
+internal hash needs resizing. In order to avoid hitting these limits when using `try_enqueue`, it is crucial to adjust the
+initial sizes in the traits appropriately, in addition to sizing the number of blocks properly as outlined above.
 
 Finally, it's important to note that because the queue is only eventually consistent and takes advantage of
 weak memory ordering for speed, there's always a possibility that under contention `try_enqueue` will fail
@@ -320,7 +347,7 @@ so be sure to reserve enough capacity in the target container first if you do th
 The guarantees are presently as follows:
 - Enqueue operations are rolled back completely if an exception is thrown from an element's constructor.
   For bulk enqueue operations, this means that elements are copied instead of moved (in order to avoid
-  having only some of the objects be moved in the event of an exception). Non-bulk enqueues always use
+  having only some objects moved in the event of an exception). Non-bulk enqueues always use
   the move constructor if one is available.
 - If the assignment operator throws during a dequeue operation (both single and bulk), the element(s) are
   considered dequeued regardless. In such a case, the dequeued elements are all properly destructed before
@@ -339,12 +366,14 @@ and the memory allocation and deallocation functions that are to be used by the 
 to providing your own traits is to create a class that inherits from the default traits
 and override only the values you wish to change. Example:
 
-    struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
-    {
-    	static const size_t BLOCK_SIZE = 256;		// Use bigger blocks
-    };
-    
-    moodycamel::ConcurrentQueue<int, MyTraits> q;
+```C++
+struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
+{
+	static const size_t BLOCK_SIZE = 256;		// Use bigger blocks
+};
+
+moodycamel::ConcurrentQueue<int, MyTraits> q;
+```
 
 #### How to dequeue types without calling the constructor
 
@@ -356,44 +385,48 @@ workaround: Create a wrapper class that copies the memory contents of the object
 is assigned by the queue (a poor man's move, essentially). Note that this only works if
 the object contains no internal pointers. Example:
 
-    struct MyObjectMover {
-        inline void operator=(MyObject&& obj) {
-            std::memcpy(data, &obj, sizeof(MyObject));
-            
-            // TODO: Cleanup obj so that when it's destructed by the queue
-            // it doesn't corrupt the data of the object we just moved it into
-        }
+```C++
+struct MyObjectMover {
+    inline void operator=(MyObject&& obj) {
+        std::memcpy(data, &obj, sizeof(MyObject));
+        
+        // TODO: Cleanup obj so that when it's destructed by the queue
+        // it doesn't corrupt the data of the object we just moved it into
+    }
 
-        inline MyObject& obj() { return *reinterpret_cast<MyObject*>(data); }
+    inline MyObject& obj() { return *reinterpret_cast<MyObject*>(data); }
 
-    private:
-        align(alignof(MyObject)) char data[sizeof(MyObject)];
-    };
+private:
+    align(alignof(MyObject)) char data[sizeof(MyObject)];
+};
+```
 
 A less dodgy alternative, if moves are cheap but default construction is not, is to use a
 wrapper that defers construction until the object is assigned, enabling use of the move
 constructor:
 
-    struct MyObjectMover {
-        inline void operator=(MyObject&& x) {
-            new (data) MyObject(std::move(x));
-            created = true;
-        }
+```C++
+struct MyObjectMover {
+    inline void operator=(MyObject&& x) {
+        new (data) MyObject(std::move(x));
+        created = true;
+    }
 
-        inline MyObject& obj() {
-            assert(created);
-            return *reinterpret_cast<MyObject*>(data);
-        }
+    inline MyObject& obj() {
+        assert(created);
+        return *reinterpret_cast<MyObject*>(data);
+    }
 
-        ~MyObjectMover() {
-            if (created)
-                obj().~MyObject();
-        }
+    ~MyObjectMover() {
+        if (created)
+            obj().~MyObject();
+    }
 
-    private:
-        align(alignof(MyObject)) char data[sizeof(MyObject)];
-        bool created = false;
-    };
+private:
+    align(alignof(MyObject)) char data[sizeof(MyObject)];
+    bool created = false;
+};
+```
 
 ## Samples
 
@@ -406,9 +439,11 @@ See my blog post for some [benchmark results][benchmarks] (including versus `boo
 or run the benchmarks yourself (requires MinGW and certain GnuWin32 utilities to build on Windows, or a recent
 g++ on Linux):
 
-    cd build
-    make benchmarks
-    bin/benchmarks
+```Shell
+cd build
+make benchmarks
+bin/benchmarks
+```
 
 The short version of the benchmarks is that it's so fast (especially the bulk methods), that if you're actually
 using the queue to *do* anything, the queue won't be your bottleneck.
@@ -430,11 +465,13 @@ a unit test for it can be cooked up.) Just open an issue on GitHub.
 ## Using vcpkg
 You can download and install `moodycamel::ConcurrentQueue` using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
 
-    git clone https://github.com/Microsoft/vcpkg.git
-    cd vcpkg
-    ./bootstrap-vcpkg.sh
-    ./vcpkg integrate install
-    vcpkg install concurrentqueue
+```Shell
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh
+./vcpkg integrate install
+vcpkg install concurrentqueue
+```
 	
 The `moodycamel::ConcurrentQueue` port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
 
@@ -485,6 +522,7 @@ of the queue itself, followed lastly by the free-standing swap functions.
 [source]: https://github.com/cameron314/concurrentqueue
 [concurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/concurrentqueue.h
 [blockingconcurrentqueue.h]: https://github.com/cameron314/concurrentqueue/blob/master/blockingconcurrentqueue.h
+[lightweightsemaphore.h]: https://github.com/cameron314/concurrentqueue/blob/master/lightweightsemaphore.h
 [unittest-src]: https://github.com/cameron314/concurrentqueue/tree/master/tests/unittests
 [benchmarks]: http://moodycamel.com/blog/2014/a-fast-general-purpose-lock-free-queue-for-c++#benchmarks
 [benchmark-src]: https://github.com/cameron314/concurrentqueue/tree/master/benchmarks

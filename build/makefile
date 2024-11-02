@@ -13,7 +13,10 @@ ifeq ($(OS),Windows_NT)
 	PLATFORM_OPTS = -static
 	TBB_PLATFORM_OPTS = -DUSE_WINTHREAD
 else
-	LD_PLATFORM_OPTS = -lrt
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S),Linux)
+		LD_PLATFORM_OPTS = -lrt
+	endif
 	# -fsanitize=address seems to have a slow memory leak when creating/destroying a lot of threads
 	#DEBUG_OPTS += -fno-omit-frame-pointer -fsanitize=address
 endif
