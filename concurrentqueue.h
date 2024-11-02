@@ -466,7 +466,7 @@ namespace details
 	};
 	template<std::size_t size> struct hash_32_or_64 : public _hash_32_or_64<(size > 4)> {  };
 	
-	static inline size_t hash_thread_id(thread_id_t id)
+	inline size_t hash_thread_id(thread_id_t id)
 	{
 		static_assert(sizeof(thread_id_t) <= 8, "Expected a platform where thread IDs are at most 64-bit values");
 		return static_cast<size_t>(hash_32_or_64<sizeof(thread_id_converter<thread_id_t>::thread_id_hash_t)>::hash(
@@ -474,7 +474,7 @@ namespace details
 	}
 	
 	template<typename T>
-	static inline bool circular_less_than(T a, T b)
+	inline bool circular_less_than(T a, T b)
 	{
 		static_assert(std::is_integral<T>::value && !std::numeric_limits<T>::is_signed, "circular_less_than is intended to be used only with unsigned integer types");
 		return static_cast<T>(a - b) > static_cast<T>(static_cast<T>(1) << (static_cast<T>(sizeof(T) * CHAR_BIT - 1)));
@@ -483,14 +483,14 @@ namespace details
 	}
 	
 	template<typename U>
-	static inline char* align_for(char* ptr)
+	inline char* align_for(char* ptr)
 	{
 		const std::size_t alignment = std::alignment_of<U>::value;
 		return ptr + (alignment - (reinterpret_cast<std::uintptr_t>(ptr) % alignment)) % alignment;
 	}
 
 	template<typename T>
-	static inline T ceil_to_pow_2(T x)
+	inline T ceil_to_pow_2(T x)
 	{
 		static_assert(std::is_integral<T>::value && !std::numeric_limits<T>::is_signed, "ceil_to_pow_2 is intended to be used only with unsigned integer types");
 
@@ -507,7 +507,7 @@ namespace details
 	}
 	
 	template<typename T>
-	static inline void swap_relaxed(std::atomic<T>& left, std::atomic<T>& right)
+	inline void swap_relaxed(std::atomic<T>& left, std::atomic<T>& right)
 	{
 		T temp = std::move(left.load(std::memory_order_relaxed));
 		left.store(std::move(right.load(std::memory_order_relaxed)), std::memory_order_relaxed);
@@ -515,7 +515,7 @@ namespace details
 	}
 	
 	template<typename T>
-	static inline T const& nomove(T const& x)
+	inline T const& nomove(T const& x)
 	{
 		return x;
 	}
@@ -542,7 +542,7 @@ namespace details
 	};
 	
 	template<typename It>
-	static inline auto deref_noexcept(It& it) MOODYCAMEL_NOEXCEPT -> decltype(*it)
+	inline auto deref_noexcept(It& it) MOODYCAMEL_NOEXCEPT -> decltype(*it)
 	{
 		return *it;
 	}
