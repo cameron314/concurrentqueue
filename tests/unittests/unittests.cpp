@@ -199,6 +199,29 @@ struct Moveable {
 #endif
 };
 
+struct Emplaceable {
+	Emplaceable() : moved(false), copied(false), copyData(0), moveData(0) {}
+	Emplaceable(const Copyable& copyData, Moveable&& moveData) : moved(false), copied(false), copyData(copyData), moveData(std::move(moveData)) { }
+	Emplaceable(Emplaceable&& o) MOODYCAMEL_NOEXCEPT : moved(true), copied(o.copied), copyData(o.copyData), moveData(std::move(o.moveData)) { }
+	void operator=(Emplaceable&& o) MOODYCAMEL_NOEXCEPT { moved = true; copied = o.copied; copyData = o.copyData; moveData = std::move(o.moveData); }
+	bool moved;
+	bool copied;
+	Copyable copyData;
+	Moveable moveData;
+
+#if defined(_MSC_VER) && _MSC_VER < 1800
+	// VS2012's std::is_nothrow_[move_]constructible is broken, so the queue never attempts to
+	// move objects with that compiler. In this case, we don't know whether it's really a copy
+	// or not being done, so give the benefit of the doubt (given the tests pass on other platforms)
+	// and assume it would have done a move if it could have (don't set copied to true).
+	Emplaceable(Emplaceable const& o) MOODYCAMEL_NOEXCEPT : moved(o.moved), copied(o.copied), copyData(o.copyData), moveData(o.moveData) { }
+	void operator=(Emplaceable const& o) MOODYCAMEL_NOEXCEPT { moved = o.moved; copied = o.copied; copyData = o.copyData; moveData = o.moveData; }
+#else
+	Emplaceable(Emplaceable const& o) MOODYCAMEL_NOEXCEPT : moved(o.moved), copied(true), copyData(o.copyData), moveData(o.moveData) { }
+	void operator=(Emplaceable const& o) MOODYCAMEL_NOEXCEPT { moved = o.moved; copied = true; copyData = o.copyData; moveData = o.moveData; }
+#endif
+};
+
 struct ThrowingMovable {
 	static std::atomic<int>& ctorCount() { static std::atomic<int> c; return c; }
 	static std::atomic<int>& destroyCount() { static std::atomic<int> c; return c; }
@@ -3310,6 +3333,20 @@ public:
 			ASSERT_OR_FAIL(!item.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
+		// enqueue_emplace(Args&&...)
+		{
+			ConcurrentQueue<Emplaceable, Traits> q;
+			ASSERT_OR_FAIL(q.enqueue_emplace(Copyable(1234), Moveable(12345)));
+			Emplaceable item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item.copyData.id == 1234);
+			ASSERT_OR_FAIL(item.moveData.id == 12345);
+			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
+			ASSERT_OR_FAIL(item.moveData.moved);
+			ASSERT_OR_FAIL(!item.moveData.copied);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
 		{
 			ConcurrentQueue<Moveable, Traits> q;
 			Moveable original(12345);
@@ -3354,6 +3391,21 @@ public:
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.moved);
 			ASSERT_OR_FAIL(!item.copied);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		// enqueue_emplace(Token, Args&&...)
+		{
+			ConcurrentQueue<Emplaceable, Traits> q;
+			ProducerToken t(q);
+			ASSERT_OR_FAIL(q.enqueue_token_emplace(t, Copyable(1234), Moveable(12345)));
+			Emplaceable item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item.copyData.id == 1234);
+			ASSERT_OR_FAIL(item.moveData.id == 12345);
+			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
+			ASSERT_OR_FAIL(item.moveData.moved);
+			ASSERT_OR_FAIL(!item.moveData.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		{
@@ -3423,6 +3475,21 @@ public:
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
+		// try_enqueue_emplace(Args&&...)
+		{
+			ConcurrentQueue<Emplaceable, Traits> q;
+			ASSERT_OR_FAIL(q.try_enqueue_emplace(Copyable(1234), Moveable(12345)));
+			Emplaceable item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item.copyData.id == 1234);
+			ASSERT_OR_FAIL(item.moveData.id == 12345);
+			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
+			ASSERT_OR_FAIL(item.moveData.moved);
+			ASSERT_OR_FAIL(!item.moveData.copied);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		
 		// try_enqueue(Token, T const&)
 		{
 			ConcurrentQueue<Copyable, Traits> q;
@@ -3468,6 +3535,22 @@ public:
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item.id == 12345);
 			ASSERT_OR_FAIL(item.copied);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		
+		// try_enqueue_emplace(Token, Args&&...)
+		{
+			ConcurrentQueue<Emplaceable, Traits> q;
+			ProducerToken t(q);
+			ASSERT_OR_FAIL(q.try_enqueue_token_emplace(t, Copyable(1234), Moveable(12345)));
+			Emplaceable item;
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item.copyData.id == 1234);
+			ASSERT_OR_FAIL(item.moveData.id == 12345);
+			ASSERT_OR_FAIL(item.moved);
+			ASSERT_OR_FAIL(!item.copied);
+			ASSERT_OR_FAIL(item.moveData.moved);
+			ASSERT_OR_FAIL(!item.moveData.copied);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
