@@ -21,6 +21,7 @@ write_basic_package_version_file(
     VERSION 
         ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion
+    ARCH_INDEPENDENT
 )
 
 configure_package_config_file(${PROJECT_NAME}Config.cmake.in
