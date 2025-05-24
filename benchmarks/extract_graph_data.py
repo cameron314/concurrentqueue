@@ -64,4 +64,4 @@ try:
 		write_csv(deq_data, 'dequeue.csv')
 		write_csv(heavy_data, 'heavy.csv', False)
 except IOError:
-	print 'Usage: ' + sys.argv[0] + ' path/to/benchmarks.log'
+	print('Usage: ' + sys.argv[0] + ' path/to/benchmarks.log')
