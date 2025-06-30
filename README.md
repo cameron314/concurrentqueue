@@ -530,4 +530,4 @@ of the queue itself, followed lastly by the free-standing swap functions.
 [cdschecker]: http://demsky.eecs.uci.edu/c11modelchecker.html
 [relacy]: http://www.1024cores.net/home/relacy-race-detector
 [spsc]: https://github.com/cameron314/readerwriterqueue
-[salsa]: http://webee.technion.ac.il/~idish/ftp/spaa049-gidron.pdf
+[salsa]: https://iditkeidar.com/wp-content/uploads/files/ftp/spaa049-gidron.pdf
