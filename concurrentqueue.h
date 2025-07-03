@@ -234,6 +234,17 @@ namespace moodycamel { namespace details {
 #endif
 #endif
 
+#if defined(__clang__) && defined(__has_attribute)
+#if __has_attribute(__no_sanitize__)
+#define MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK \
+  __attribute__((__no_sanitize__("unsigned-integer-overflow")))
+#endif
+#endif
+
+#if !defined(MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK)
+#define MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK
+#endif
+
 namespace moodycamel { namespace details {
 #ifndef MOODYCAMEL_ALIGNAS
 // VS2013 doesn't support alignas or alignof, and align() requires a constant literal
@@ -441,8 +452,9 @@ namespace details
 	};
 	
 	template<bool use32> struct _hash_32_or_64 {
-		static inline std::uint32_t hash(std::uint32_t h)
-		{
+    MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK static inline std::uint32_t
+    hash(std::uint32_t h)
+    {
 			// MurmurHash3 finalizer -- see https://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp
 			// Since the thread ID is already unique, all we really want to do is propagate that
 			// uniqueness evenly across all the bits, so that we can use a subset of the bits while
@@ -455,8 +467,9 @@ namespace details
 		}
 	};
 	template<> struct _hash_32_or_64<1> {
-		static inline std::uint64_t hash(std::uint64_t h)
-		{
+    MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK static inline std::uint64_t
+    hash(std::uint64_t h)
+    {
 			h ^= h >> 33;
 			h *= 0xff51afd7ed558ccd;
 			h ^= h >> 33;
@@ -472,10 +485,11 @@ namespace details
 		return static_cast<size_t>(hash_32_or_64<sizeof(thread_id_converter<thread_id_t>::thread_id_hash_t)>::hash(
 			thread_id_converter<thread_id_t>::prehash(id)));
 	}
-	
-	template<typename T>
-	inline bool circular_less_than(T a, T b)
-	{
+
+  template <typename T>
+  MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK inline bool
+  circular_less_than(T a, T b)
+  {
 		static_assert(std::is_integral<T>::value && !std::numeric_limits<T>::is_signed, "circular_less_than is intended to be used only with unsigned integer types");
 		return static_cast<T>(a - b) > static_cast<T>(static_cast<T>(1) << (static_cast<T>(sizeof(T) * CHAR_BIT - 1)));
 		// Note: extra parens around rhs of operator<< is MSVC bug: https://developercommunity2.visualstudio.com/t/C4554-triggers-when-both-lhs-and-rhs-is/10034931
@@ -2962,10 +2976,10 @@ private:
 			assert(localBlockIndex->index[idx]->key.load(std::memory_order_relaxed) == index && localBlockIndex->index[idx]->value.load(std::memory_order_relaxed) != nullptr);
 			return idx;
 		}
-		
-		bool new_block_index()
-		{
-			auto prev = blockIndex.load(std::memory_order_relaxed);
+
+    MOODYCAMEL_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK bool new_block_index()
+    {
+      auto prev = blockIndex.load(std::memory_order_relaxed);
 			size_t prevCapacity = prev == nullptr ? 0 : prev->capacity;
 			auto entryCount = prev == nullptr ? nextBlockIndexCapacity : prevCapacity;
 			auto raw = static_cast<char*>((Traits::malloc)(
@@ -3005,9 +3019,9 @@ private:
 			nextBlockIndexCapacity <<= 1;
 			
 			return true;
-		}
-		
-	private:
+    }
+
+  private:
 		size_t nextBlockIndexCapacity;
 		std::atomic<BlockIndexHeader*> blockIndex;
 
