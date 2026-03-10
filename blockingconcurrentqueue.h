@@ -56,18 +56,18 @@ public:
 	// includes making the memory effects of construction visible, possibly with a
 	// memory barrier).
 	explicit BlockingConcurrentQueue(size_t capacity = 6 * BLOCK_SIZE)
-		: inner(capacity), sema(create<LightweightSemaphore, ssize_t, int>(0, (int)Traits::MAX_SEMA_SPINS), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
+		: inner(capacity), sema(create<LightweightSemaphore, ssize_t, int>(0, static_cast<int>(Traits::MAX_SEMA_SPINS)), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
 	{
-		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
+		assert(reinterpret_cast<ConcurrentQueue*>(reinterpret_cast<BlockingConcurrentQueue*>(1)) == &(reinterpret_cast<BlockingConcurrentQueue*>(1))->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
 			MOODYCAMEL_THROW(std::bad_alloc());
 		}
 	}
 	
 	BlockingConcurrentQueue(size_t minCapacity, size_t maxExplicitProducers, size_t maxImplicitProducers)
-		: inner(minCapacity, maxExplicitProducers, maxImplicitProducers), sema(create<LightweightSemaphore, ssize_t, int>(0, (int)Traits::MAX_SEMA_SPINS), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
+		: inner(minCapacity, maxExplicitProducers, maxImplicitProducers), sema(create<LightweightSemaphore, ssize_t, int>(0, static_cast<int>(Traits::MAX_SEMA_SPINS)), &BlockingConcurrentQueue::template destroy<LightweightSemaphore>)
 	{
-		assert(reinterpret_cast<ConcurrentQueue*>((BlockingConcurrentQueue*)1) == &((BlockingConcurrentQueue*)1)->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
+		assert(reinterpret_cast<ConcurrentQueue*>(reinterpret_cast<BlockingConcurrentQueue*>(1)) == &(reinterpret_cast<BlockingConcurrentQueue*>(1))->inner && "BlockingConcurrentQueue must have ConcurrentQueue as its first member");
 		if (!sema) {
 			MOODYCAMEL_THROW(std::bad_alloc());
 		}
@@ -179,7 +179,7 @@ public:
 	inline bool enqueue_bulk(It itemFirst, size_t count)
 	{
 		if ((details::likely)(inner.enqueue_bulk(std::forward<It>(itemFirst), count))) {
-			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
 			return true;
 		}
 		return false;
@@ -195,7 +195,7 @@ public:
 	inline bool enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
 		if ((details::likely)(inner.enqueue_bulk(token, std::forward<It>(itemFirst), count))) {
-			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
 			return true;
 		}
 		return false;
@@ -264,7 +264,7 @@ public:
 	inline bool try_enqueue_bulk(It itemFirst, size_t count)
 	{
 		if (inner.try_enqueue_bulk(std::forward<It>(itemFirst), count)) {
-			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
 			return true;
 		}
 		return false;
@@ -279,7 +279,7 @@ public:
 	inline bool try_enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
 		if (inner.try_enqueue_bulk(token, std::forward<It>(itemFirst), count)) {
-			sema->signal((LightweightSemaphore::ssize_t)(ssize_t)count);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
 			return true;
 		}
 		return false;
@@ -327,7 +327,7 @@ public:
 	inline size_t try_dequeue_bulk(It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = (size_t)sema->tryWaitMany((LightweightSemaphore::ssize_t)(ssize_t)max);
+		max = static_cast<size_t>(sema->tryWaitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(itemFirst, max - count);
 		}
@@ -343,7 +343,7 @@ public:
 	inline size_t try_dequeue_bulk(consumer_token_t& token, It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = (size_t)sema->tryWaitMany((LightweightSemaphore::ssize_t)(ssize_t)max);
+		max = static_cast<size_t>(sema->tryWaitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(token, itemFirst, max - count);
 		}
@@ -447,7 +447,7 @@ public:
 	inline size_t wait_dequeue_bulk(It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = (size_t)sema->waitMany((LightweightSemaphore::ssize_t)(ssize_t)max);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(itemFirst, max - count);
 		}
@@ -465,7 +465,7 @@ public:
 	inline size_t wait_dequeue_bulk_timed(It itemFirst, size_t max, std::int64_t timeout_usecs)
 	{
 		size_t count = 0;
-		max = (size_t)sema->waitMany((LightweightSemaphore::ssize_t)(ssize_t)max, timeout_usecs);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max), timeout_usecs));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(itemFirst, max - count);
 		}
@@ -492,7 +492,7 @@ public:
 	inline size_t wait_dequeue_bulk(consumer_token_t& token, It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = (size_t)sema->waitMany((LightweightSemaphore::ssize_t)(ssize_t)max);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(token, itemFirst, max - count);
 		}
@@ -510,7 +510,7 @@ public:
 	inline size_t wait_dequeue_bulk_timed(consumer_token_t& token, It itemFirst, size_t max, std::int64_t timeout_usecs)
 	{
 		size_t count = 0;
-		max = (size_t)sema->waitMany((LightweightSemaphore::ssize_t)(ssize_t)max, timeout_usecs);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max), timeout_usecs));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(token, itemFirst, max - count);
 		}
@@ -537,7 +537,7 @@ public:
 	// Thread-safe.
 	inline size_t size_approx() const
 	{
-		return (size_t)sema->availableApprox();
+		return static_cast<size_t>(sema->availableApprox());
 	}
 	
 	
