@@ -179,12 +179,13 @@ public:
 	inline bool enqueue_bulk(It itemFirst, size_t count)
 	{
 		if ((details::likely)(inner.enqueue_bulk(std::forward<It>(itemFirst), count))) {
-			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
+			assert(static_cast<ssize_t>(count) >= 0);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(count)));
 			return true;
 		}
 		return false;
 	}
-	
+
 	// Enqueues several items using an explicit producer token.
 	// Allocates memory if required. Only fails if memory allocation fails
 	// (or Traits::MAX_SUBQUEUE_SIZE has been defined and would be surpassed).
@@ -195,7 +196,8 @@ public:
 	inline bool enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
 		if ((details::likely)(inner.enqueue_bulk(token, std::forward<It>(itemFirst), count))) {
-			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
+			assert(static_cast<ssize_t>(count) >= 0);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(count)));
 			return true;
 		}
 		return false;
@@ -264,12 +266,13 @@ public:
 	inline bool try_enqueue_bulk(It itemFirst, size_t count)
 	{
 		if (inner.try_enqueue_bulk(std::forward<It>(itemFirst), count)) {
-			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
+			assert(static_cast<ssize_t>(count) >= 0);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(count)));
 			return true;
 		}
 		return false;
 	}
-	
+
 	// Enqueues several items using an explicit producer token.
 	// Does not allocate memory. Fails if not enough room to enqueue.
 	// Note: Use std::make_move_iterator if the elements should be moved
@@ -279,7 +282,8 @@ public:
 	inline bool try_enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
 		if (inner.try_enqueue_bulk(token, std::forward<It>(itemFirst), count)) {
-			sema->signal(static_cast<LightweightSemaphore::ssize_t>(count));
+			assert(static_cast<ssize_t>(count) >= 0);
+			sema->signal(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(count)));
 			return true;
 		}
 		return false;
@@ -327,13 +331,14 @@ public:
 	inline size_t try_dequeue_bulk(It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = static_cast<size_t>(sema->tryWaitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
+		assert(static_cast<ssize_t>(max) >= 0);
+		max = static_cast<size_t>(sema->tryWaitMany(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(max))));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(itemFirst, max - count);
 		}
 		return count;
 	}
-	
+
 	// Attempts to dequeue several elements from the queue using an explicit consumer token.
 	// Returns the number of items actually dequeued.
 	// Returns 0 if all producer streams appeared empty at the time they
@@ -343,7 +348,8 @@ public:
 	inline size_t try_dequeue_bulk(consumer_token_t& token, It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = static_cast<size_t>(sema->tryWaitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
+		assert(static_cast<ssize_t>(max) >= 0);
+		max = static_cast<size_t>(sema->tryWaitMany(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(max))));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(token, itemFirst, max - count);
 		}
@@ -447,13 +453,14 @@ public:
 	inline size_t wait_dequeue_bulk(It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
+		assert(static_cast<ssize_t>(max) >= 0);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(max))));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(itemFirst, max - count);
 		}
 		return count;
 	}
-	
+
 	// Attempts to dequeue several elements from the queue.
 	// Returns the number of items actually dequeued, which can
 	// be 0 if the timeout expires while waiting for elements,
@@ -465,7 +472,8 @@ public:
 	inline size_t wait_dequeue_bulk_timed(It itemFirst, size_t max, std::int64_t timeout_usecs)
 	{
 		size_t count = 0;
-		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max), timeout_usecs));
+		assert(static_cast<ssize_t>(max) >= 0);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(max)), timeout_usecs));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(itemFirst, max - count);
 		}
@@ -492,7 +500,8 @@ public:
 	inline size_t wait_dequeue_bulk(consumer_token_t& token, It itemFirst, size_t max)
 	{
 		size_t count = 0;
-		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max)));
+		assert(static_cast<ssize_t>(max) >= 0);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(max))));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(token, itemFirst, max - count);
 		}
@@ -510,7 +519,8 @@ public:
 	inline size_t wait_dequeue_bulk_timed(consumer_token_t& token, It itemFirst, size_t max, std::int64_t timeout_usecs)
 	{
 		size_t count = 0;
-		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(max), timeout_usecs));
+		assert(static_cast<ssize_t>(max) >= 0);
+		max = static_cast<size_t>(sema->waitMany(static_cast<LightweightSemaphore::ssize_t>(static_cast<ssize_t>(max)), timeout_usecs));
 		while (count != max) {
 			count += inner.template try_dequeue_bulk<It&>(token, itemFirst, max - count);
 		}
