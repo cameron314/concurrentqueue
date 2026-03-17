@@ -136,6 +136,18 @@ struct LargeTraits : public MallocTrackingTraits
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = 128;
 };
 
+struct SmallImplicitIndexTraits : public MallocTrackingTraits
+{
+	static const size_t BLOCK_SIZE = 4;
+	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = 4;
+};
+
+struct LargerImplicitIndexTraits : public MallocTrackingTraits
+{
+	static const size_t BLOCK_SIZE = 4;
+	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = 16;
+};
+
 // Note: Not thread safe!
 struct Foo
 {
@@ -375,6 +387,7 @@ public:
 		
 		REGISTER_TEST(explicit_strings_threaded);
 		REGISTER_TEST(large_traits);
+		REGISTER_TEST(implicit_producer_index_limit);
 	}
 	
 	bool postTest(bool testSucceeded) override
@@ -5028,6 +5041,68 @@ public:
 			threads[tid].join();
 		}
 		
+		return true;
+	}
+
+	bool implicit_producer_index_limit()
+	{
+		// Issue #418: try_enqueue() fails around BLOCK_SIZE * IMPLICIT_INITIAL_INDEX_SIZE
+		// elements even when blocks have been pre-allocated, because the block index
+		// (not the blocks themselves) needs to grow, which requires allocation that
+		// try_enqueue refuses to do.
+
+		// SmallImplicitIndexTraits: BLOCK_SIZE=4, IMPLICIT_INITIAL_INDEX_SIZE=4, limit=16
+		// LargerImplicitIndexTraits: BLOCK_SIZE=4, IMPLICIT_INITIAL_INDEX_SIZE=16, limit=64
+
+		{
+			// Demonstrate the limit: try_enqueue fails at BLOCK_SIZE * IMPLICIT_INITIAL_INDEX_SIZE
+			const int limit = (int)(SmallImplicitIndexTraits::BLOCK_SIZE * SmallImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);
+			ConcurrentQueue<int, SmallImplicitIndexTraits> q(limit + 64);		// Pre-allocate plenty of blocks
+
+			int successCount = 0;
+			for (int i = 0; i < limit + 64; ++i) {
+				if (!q.try_enqueue(i))
+					break;
+				++successCount;
+			}
+			// try_enqueue should stop succeeding at the index limit
+			ASSERT_OR_FAIL(successCount == limit);
+		}
+
+		{
+			// Fix #1: enqueue() (which can allocate) works past the limit
+			const int limit = (int)(SmallImplicitIndexTraits::BLOCK_SIZE * SmallImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);
+			ConcurrentQueue<int, SmallImplicitIndexTraits> q(limit + 64);
+
+			for (int i = 0; i < limit + 64; ++i) {
+				ASSERT_OR_FAIL(q.enqueue(i));
+			}
+			// Verify all elements are dequeued correctly
+			int item;
+			for (int i = 0; i < limit + 64; ++i) {
+				ASSERT_OR_FAIL(q.try_dequeue(item));
+				ASSERT_OR_FAIL(item == i);
+			}
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+
+		{
+			// Fix #2: larger IMPLICIT_INITIAL_INDEX_SIZE allows more try_enqueue calls
+			const int small_limit = (int)(SmallImplicitIndexTraits::BLOCK_SIZE * SmallImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);		// 16
+			const int large_limit = (int)(LargerImplicitIndexTraits::BLOCK_SIZE * LargerImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);	// 64
+			ConcurrentQueue<int, LargerImplicitIndexTraits> q(large_limit + 64);
+
+			int successCount = 0;
+			for (int i = 0; i < large_limit + 64; ++i) {
+				if (!q.try_enqueue(i))
+					break;
+				++successCount;
+			}
+			// Should succeed well past the old small limit
+			ASSERT_OR_FAIL(successCount > small_limit);
+			ASSERT_OR_FAIL(successCount == large_limit);
+		}
+
 		return true;
 	}
 

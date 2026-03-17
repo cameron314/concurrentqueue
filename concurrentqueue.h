@@ -355,6 +355,12 @@ struct ConcurrentQueueDefaultTraits
 	
 	// How many full blocks can be expected for a single implicit producer? This should
 	// reflect that number's maximum for optimal performance. Must be a power of 2.
+	// Note: This controls the maximum number of elements that can be enqueued by a
+	// single implicit producer when using try_enqueue (which does not allocate).
+	// The limit is BLOCK_SIZE * IMPLICIT_INITIAL_INDEX_SIZE elements; beyond that,
+	// the block index needs to grow, which requires allocation, causing try_enqueue
+	// to fail. Increase this value (or use enqueue(), which can allocate) if you need
+	// more capacity per implicit producer. See also issue #418.
 	static const size_t IMPLICIT_INITIAL_INDEX_SIZE = 32;
 	
 	// The initial size of the hash table mapping thread IDs to implicit producers.
@@ -1063,6 +1069,11 @@ public:
 	// Does not allocate memory. Fails if not enough room to enqueue (or implicit
 	// production is disabled because Traits::INITIAL_IMPLICIT_PRODUCER_HASH_SIZE
 	// is 0).
+	// Note: For implicit producers (no token), the maximum number of elements that
+	// can be held is BLOCK_SIZE * IMPLICIT_INITIAL_INDEX_SIZE before the block
+	// index must grow (which requires allocation and causes try_enqueue to fail).
+	// Pre-allocating blocks via the constructor does not increase the index size.
+	// Increase IMPLICIT_INITIAL_INDEX_SIZE in your traits, or use enqueue() instead.
 	// Thread-safe.
 	inline bool try_enqueue(T const& item)
 	{
