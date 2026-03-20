@@ -234,8 +234,8 @@ public:
 #else
 		clock_gettime(CLOCK_REALTIME, &ts);
 #endif
-		ts.tv_sec += (time_t)(usecs / usecs_in_1_sec);
-		ts.tv_nsec += (long)(usecs % usecs_in_1_sec) * 1000;
+		ts.tv_sec += static_cast<time_t>(usecs / usecs_in_1_sec);
+		ts.tv_nsec += static_cast<long>(usecs % usecs_in_1_sec) * 1000;
 		// sem_timedwait bombs if you have more than 1e9 in tv_nsec
 		// so we have to clean things up before passing it in
 		if (ts.tv_nsec >= nsecs_in_1_sec) {
@@ -425,7 +425,7 @@ public:
 		ssize_t toRelease = -oldCount < count ? -oldCount : count;
 		if (toRelease > 0)
 		{
-			m_sema.signal((int)toRelease);
+			m_sema.signal(static_cast<int>(toRelease));
 		}
 	}
 	
