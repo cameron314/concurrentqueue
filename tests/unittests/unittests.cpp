@@ -5070,7 +5070,7 @@ public:
 		}
 
 		{
-			// Fix #1: enqueue() (which can allocate) works past the limit
+			// Workaround #1: enqueue() (which can allocate) can grow the index
 			const int limit = (int)(SmallImplicitIndexTraits::BLOCK_SIZE * SmallImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);
 			ConcurrentQueue<int, SmallImplicitIndexTraits> q(limit + 64);
 
@@ -5087,7 +5087,7 @@ public:
 		}
 
 		{
-			// Fix #2: larger IMPLICIT_INITIAL_INDEX_SIZE allows more try_enqueue calls
+			// Workaround #2: larger IMPLICIT_INITIAL_INDEX_SIZE allows more try_enqueue calls
 			const int small_limit = (int)(SmallImplicitIndexTraits::BLOCK_SIZE * SmallImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);		// 16
 			const int large_limit = (int)(LargerImplicitIndexTraits::BLOCK_SIZE * LargerImplicitIndexTraits::IMPLICIT_INITIAL_INDEX_SIZE);	// 64
 			ConcurrentQueue<int, LargerImplicitIndexTraits> q(large_limit + 64);
