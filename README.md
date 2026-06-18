@@ -455,8 +455,9 @@ core queue algorithm through the [CDSChecker][cdschecker] C++11 memory model mod
 inner algorithms were tested separately using the [Relacy][relacy] model checker, and full integration
 tests were also performed with Relacy.
 I've tested
-on Linux (Fedora 19) and Windows (7), but only on x86 processors so far (Intel and AMD). The code was
-written to be platform-independent, however, and should work across all processors and OSes.
+on Linux (Fedora 19) and Windows (7) on x86 processors (Intel and AMD), and the GitHub Actions CI now also
+cross-compiles and runs the unit tests for `riscv64` Linux under QEMU. The code was written to be
+platform-independent, and should work across all processors and OSes.
 
 Due to the complexity of the implementation and the difficult-to-test nature of lock-free code in general,
 there may still be bugs. If anyone is seeing buggy behaviour, I'd like to hear about it! (Especially if
