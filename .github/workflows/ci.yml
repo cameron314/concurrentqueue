@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  native-linux-unittests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++
+
+      - name: Build unit tests
+        working-directory: build
+        run: |
+          mkdir -p bin
+          g++ -c -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion -DMOODYCAMEL_STATIC -pthread -g -O0 -fno-elide-constructors -fno-exceptions ../c_api/blockingconcurrentqueue.cpp ../c_api/concurrentqueue.cpp
+          g++ -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion -DMOODYCAMEL_STATIC -pthread -g -O0 -fno-elide-constructors ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/unittests/unittests.cpp blockingconcurrentqueue.o concurrentqueue.o -o bin/unittests -lrt
+
+      - name: Run unit tests
+        working-directory: build
+        run: ./bin/unittests --disable-prompt --iterations 1
+
+  riscv64-linux-unittests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install RISC-V toolchain and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-riscv64-linux-gnu qemu-user-static
+
+      - name: Build RISC-V unit tests
+        working-directory: build
+        run: |
+          mkdir -p bin-riscv
+          riscv64-linux-gnu-g++ -c -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion -DMOODYCAMEL_STATIC -pthread -g -O0 -fno-elide-constructors -fno-exceptions ../c_api/blockingconcurrentqueue.cpp ../c_api/concurrentqueue.cpp
+          riscv64-linux-gnu-g++ -std=c++11 -Wall -pedantic-errors -Wpedantic -Wconversion -DMOODYCAMEL_STATIC -pthread -g -O0 -fno-elide-constructors ../tests/common/simplethread.cpp ../tests/common/systemtime.cpp ../tests/unittests/unittests.cpp blockingconcurrentqueue.o concurrentqueue.o -o bin-riscv/unittests-riscv64 -lrt
+
+      - name: Run RISC-V unit tests under QEMU
+        working-directory: build
+        run: qemu-riscv64-static -L /usr/riscv64-linux-gnu ./bin-riscv/unittests-riscv64 --disable-prompt --iterations 1
