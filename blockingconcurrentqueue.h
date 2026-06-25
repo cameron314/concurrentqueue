@@ -7,6 +7,13 @@
 
 #pragma once
 
+// Work around potential conflict with system headers (e.g., <linux/fs.h>) that define BLOCK_SIZE as a macro
+#ifdef BLOCK_SIZE
+#pragma push_macro("BLOCK_SIZE")
+#undef BLOCK_SIZE
+#define CONCURRENTQUEUE_BLOCK_SIZE_WAS_DEFINED
+#endif
+
 #include "concurrentqueue.h"
 #include "lightweightsemaphore.h"
 
@@ -590,3 +597,9 @@ inline void swap(BlockingConcurrentQueue<T, Traits>& a, BlockingConcurrentQueue<
 }
 
 }	// end namespace moodycamel
+
+// Restore BLOCK_SIZE macro if it was defined before
+#ifdef CONCURRENTQUEUE_BLOCK_SIZE_WAS_DEFINED
+#pragma pop_macro("BLOCK_SIZE")
+#undef CONCURRENTQUEUE_BLOCK_SIZE_WAS_DEFINED
+#endif
