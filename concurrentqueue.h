@@ -172,7 +172,14 @@ namespace moodycamel { namespace details {
 
 // Exceptions
 #ifndef MOODYCAMEL_EXCEPTIONS_ENABLED
-#if (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
+// On Clang/AppleClang, __has_feature(cxx_exceptions) is the authoritative check
+// and correctly handles Objective-C++ where __EXCEPTIONS may be defined for
+// Objective-C exceptions even when C++ exceptions are disabled (see issue #435).
+#if defined(__has_feature)
+#if __has_feature(cxx_exceptions)
+#define MOODYCAMEL_EXCEPTIONS_ENABLED
+#endif
+#elif (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
 #define MOODYCAMEL_EXCEPTIONS_ENABLED
 #endif
 #endif
