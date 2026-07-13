@@ -1522,7 +1522,7 @@ private:
 					assert((head->freeListRefs.load(std::memory_order_relaxed) & SHOULD_BE_ON_FREELIST) == 0);
 					
 					// Decrease refcount twice, once for our ref, and once for the list's ref
-					head->freeListRefs.fetch_sub(2, std::memory_order_release);
+					head->freeListRefs.fetch_sub(2, std::memory_order_acq_rel);
 					return head;
 				}
 				
@@ -2073,7 +2073,7 @@ private:
 				}
 				else {
 					// Wasn't anything to dequeue after all; make the effective dequeue count eventually consistent
-					this->dequeueOvercommit.fetch_add(1, std::memory_order_release);		// Release so that the fetch_add on dequeueOptimisticCount is guaranteed to happen before this write
+					this->dequeueOvercommit.fetch_add(1, std::memory_order_acq_rel);		// Release so that the fetch_add on dequeueOptimisticCount is guaranteed to happen before this write
 				}
 			}
 		
@@ -2290,7 +2290,7 @@ private:
 				if (details::circular_less_than<size_t>(0, actualCount)) {
 					actualCount = desiredCount < actualCount ? desiredCount : actualCount;
 					if (actualCount < desiredCount) {
-						this->dequeueOvercommit.fetch_add(desiredCount - actualCount, std::memory_order_release);
+						this->dequeueOvercommit.fetch_add(desiredCount - actualCount, std::memory_order_acq_rel);
 					}
 					
 					// Get the first index. Note that since there's guaranteed to be at least actualCount elements, this
@@ -2359,7 +2359,7 @@ private:
 				}
 				else {
 					// Wasn't anything to dequeue after all; make the effective dequeue count eventually consistent
-					this->dequeueOvercommit.fetch_add(desiredCount, std::memory_order_release);
+					this->dequeueOvercommit.fetch_add(desiredCount, std::memory_order_acq_rel);
 				}
 			}
 			
@@ -2640,7 +2640,7 @@ private:
 					return true;
 				}
 				else {
-					this->dequeueOvercommit.fetch_add(1, std::memory_order_release);
+					this->dequeueOvercommit.fetch_add(1, std::memory_order_acq_rel);
 				}
 			}
 		
@@ -2822,7 +2822,7 @@ private:
 				if (details::circular_less_than<size_t>(0, actualCount)) {
 					actualCount = desiredCount < actualCount ? desiredCount : actualCount;
 					if (actualCount < desiredCount) {
-						this->dequeueOvercommit.fetch_add(desiredCount - actualCount, std::memory_order_release);
+						this->dequeueOvercommit.fetch_add(desiredCount - actualCount, std::memory_order_acq_rel);
 					}
 					
 					// Get the first index. Note that since there's guaranteed to be at least actualCount elements, this
@@ -2900,7 +2900,7 @@ private:
 					return actualCount;
 				}
 				else {
-					this->dequeueOvercommit.fetch_add(desiredCount, std::memory_order_release);
+					this->dequeueOvercommit.fetch_add(desiredCount, std::memory_order_acq_rel);
 				}
 			}
 			
@@ -3481,7 +3481,7 @@ private:
 		auto newCount = 1 + implicitProducerHashCount.fetch_add(1, std::memory_order_relaxed);
 		while (true) {
 			// NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
-			if (newCount >= (mainHash->capacity >> 1) && !implicitProducerHashResizeInProgress.test_and_set(std::memory_order_acquire)) {
+			if (newCount >= (mainHash->capacity >> 1) && !implicitProducerHashResizeInProgress.test_and_set(std::memory_order_acq_rel)) {
 				// We've acquired the resize lock, try to allocate a bigger hash table.
 				// Note the acquire fence synchronizes with the release fence at the end of this block, and hence when
 				// we reload implicitProducerHash it must be the most recent version (it only gets changed within this
@@ -3731,7 +3731,7 @@ template<typename T, typename Traits>
 ConsumerToken::ConsumerToken(ConcurrentQueue<T, Traits>& queue)
 	: itemsConsumedFromCurrent(0), currentProducer(nullptr), desiredProducer(nullptr)
 {
-	initialOffset = queue.nextExplicitConsumerId.fetch_add(1, std::memory_order_release);
+	initialOffset = queue.nextExplicitConsumerId.fetch_add(1, std::memory_order_acq_rel);
 	lastKnownGlobalOffset = static_cast<std::uint32_t>(-1);
 }
 
@@ -3739,7 +3739,7 @@ template<typename T, typename Traits>
 ConsumerToken::ConsumerToken(BlockingConcurrentQueue<T, Traits>& queue)
 	: itemsConsumedFromCurrent(0), currentProducer(nullptr), desiredProducer(nullptr)
 {
-	initialOffset = reinterpret_cast<ConcurrentQueue<T, Traits>*>(&queue)->nextExplicitConsumerId.fetch_add(1, std::memory_order_release);
+	initialOffset = reinterpret_cast<ConcurrentQueue<T, Traits>*>(&queue)->nextExplicitConsumerId.fetch_add(1, std::memory_order_acq_rel);
 	lastKnownGlobalOffset = static_cast<std::uint32_t>(-1);
 }
 
