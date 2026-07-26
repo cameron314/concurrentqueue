@@ -59,7 +59,7 @@ install(
                 lightweightsemaphore.h 
                 LICENSE.md
         DESTINATION 
-                ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}/moodycamel
+                ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
 )
 
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
