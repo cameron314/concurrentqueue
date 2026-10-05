@@ -388,6 +388,7 @@ public:
 		REGISTER_TEST(explicit_strings_threaded);
 		REGISTER_TEST(large_traits);
 		REGISTER_TEST(implicit_producer_index_limit);
+		REGISTER_TEST(enqueue_bulk_producer_token_generating_iterator);
 	}
 	
 	bool postTest(bool testSucceeded) override
@@ -5131,6 +5132,58 @@ public:
 		for (size_t tid = 0; tid != threads.size(); ++tid) {
 			threads[tid].join();
 		}
+
+		return true;
+	}
+
+	/**
+	 * @brief Verifies bulk enqueuing using an explicit producer token with a generating iterator
+	 * and move-only types, validating avoidance of -Wstringop-overflow false positive (Issue #456).
+	 *
+	 * @return true if all assertions succeed.
+	 */
+	bool enqueue_bulk_producer_token_generating_iterator()
+	{
+		struct MoveOnlyTask {
+			int id;
+			alignas(16) char storage[48];
+			MoveOnlyTask() : id(-1) { std::memset(storage, 0, sizeof(storage)); }
+			explicit MoveOnlyTask(int id) : id(id) { std::memset(storage, 0, sizeof(storage)); }
+			MoveOnlyTask(MoveOnlyTask&& o) MOODYCAMEL_NOEXCEPT : id(o.id) {
+				o.id = -1;
+				std::memcpy(storage, o.storage, sizeof(storage));
+			}
+			MoveOnlyTask& operator=(MoveOnlyTask&& o) MOODYCAMEL_NOEXCEPT {
+				id = o.id;
+				o.id = -1;
+				std::memcpy(storage, o.storage, sizeof(storage));
+				return *this;
+			}
+			MoveOnlyTask(const MoveOnlyTask&) MOODYCAMEL_DELETE_FUNCTION;
+			MoveOnlyTask& operator=(const MoveOnlyTask&) MOODYCAMEL_DELETE_FUNCTION;
+		};
+
+		struct GeneratorIterator {
+			int current;
+			MoveOnlyTask operator*() const { return MoveOnlyTask(current); }
+			GeneratorIterator& operator++() { ++current; return *this; }
+			GeneratorIterator operator++(int) { GeneratorIterator copy = *this; ++current; return copy; }
+			bool operator!=(const GeneratorIterator& o) const { return current != o.current; }
+		};
+
+		ConcurrentQueue<MoveOnlyTask> q;
+		ProducerToken tok(q);
+		GeneratorIterator it{0};
+		const size_t COUNT = 64;
+		ASSERT_OR_FAIL(q.enqueue_bulk(tok, it, COUNT));
+
+		for (size_t i = 0; i != COUNT; ++i) {
+			MoveOnlyTask task;
+			ASSERT_OR_FAIL(q.try_dequeue(task));
+			ASSERT_OR_FAIL(task.id == static_cast<int>(i));
+		}
+		MoveOnlyTask extra;
+		ASSERT_OR_FAIL(!q.try_dequeue(extra));
 
 		return true;
 	}

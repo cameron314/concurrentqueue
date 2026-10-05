@@ -1408,7 +1408,14 @@ private:
 	template<AllocationMode canAlloc, typename It>
 	inline bool inner_enqueue_bulk(producer_token_t const& token, It itemFirst, size_t count)
 	{
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
 		return static_cast<ExplicitProducer*>(token.producer)->ConcurrentQueue::ExplicitProducer::template enqueue_bulk<canAlloc>(itemFirst, count);
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 7
+#pragma GCC diagnostic pop
+#endif
 	}
 	
 	template<AllocationMode canAlloc, typename It>
