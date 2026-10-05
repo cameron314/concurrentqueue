@@ -13,7 +13,19 @@
 #include <ctime> // For clock_gettime
 #include <type_traits> // For std::make_signed<T>
 
-#if defined(_WIN32)
+#if !defined(MOODYCAMEL_USE_OS_SEMAPHORE) && (defined(MOODYCAMEL_USE_STD_SEMAPHORE) || (defined(__cplusplus) && __cplusplus >= 202002L) || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#if defined(__has_include)
+#if __has_include(<semaphore>)
+#include <semaphore>
+#include <chrono>
+#define MOODYCAMEL_HAS_STD_SEMAPHORE
+#endif
+#endif
+#endif
+
+#if defined(MOODYCAMEL_HAS_STD_SEMAPHORE)
+// Using standard C++20 <semaphore>; OS-specific includes and declarations are not required
+#elif defined(_WIN32)
 // Avoid including windows.h in a header; we only need a handful of
 // items, so we'll redeclare them here (this is relatively safe since
 // the API generally has to remain stable between Windows versions).
@@ -74,7 +86,57 @@ namespace details
 // 2. Altered source versions must be plainly marked as such, and must not be
 //	misrepresented as being the original software.
 // 3. This notice may not be removed or altered from any source distribution.
-#if defined(_WIN32)
+#if defined(MOODYCAMEL_HAS_STD_SEMAPHORE)
+//---------------------------------------------------------
+// Semaphore (C++20 std::counting_semaphore)
+//---------------------------------------------------------
+class Semaphore
+{
+private:
+	static const std::ptrdiff_t MaxCount = 0x7fffffff;
+	std::counting_semaphore<MaxCount> m_sema;
+
+	Semaphore(const Semaphore& other) MOODYCAMEL_DELETE_FUNCTION;
+	Semaphore& operator=(const Semaphore& other) MOODYCAMEL_DELETE_FUNCTION;
+
+public:
+	Semaphore(int initialCount = 0)
+		: m_sema(initialCount)
+	{
+		assert(initialCount >= 0);
+	}
+
+	bool wait()
+	{
+		m_sema.acquire();
+		return true;
+	}
+
+	bool try_wait()
+	{
+		return m_sema.try_acquire();
+	}
+
+	bool timed_wait(std::uint64_t usecs)
+	{
+		return m_sema.try_acquire_for(std::chrono::microseconds(usecs));
+	}
+
+	void signal()
+	{
+		m_sema.release(1);
+	}
+
+	void signal(int count)
+	{
+		assert(count >= 0);
+		if (count > 0)
+		{
+			m_sema.release(static_cast<std::ptrdiff_t>(count));
+		}
+	}
+};
+#elif defined(_WIN32)
 class Semaphore
 {
 private:
