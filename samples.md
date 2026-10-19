@@ -167,7 +167,7 @@ for (int i = 0; i != ConsumerCount; ++i) {
 The blocking version is different, since either the number of elements being produced needs
 to be known ahead of time, or some other coordination is required to tell the consumers when
 to stop calling wait_dequeue (see [draining a blocking queue](#draining-a-blocking-queue-when-producers-finish)
-below for an alternative). This is necessary because otherwise a consumer
+below for an example). This is necessary because otherwise a consumer
 could end up blocking forever -- and destroying a queue while a consumer is blocking on it leads
 to undefined behaviour.
 ```C++
@@ -203,73 +203,86 @@ for (int i = 0; i != ConsumerCount; ++i) {
 
 ## Draining a blocking queue when producers finish
 
-When the number of items is not known in advance, consumers can use timed waits
-until all producers have finished, then [pump until empty](#pump-until-empty).
-A sentinel enqueued by another thread is not necessarily dequeued after all
-earlier work from other producers: the queue does not provide cross-producer
-ordering. Similarly, `size_approx() == 0` is not a shutdown condition.
+When the number of items is not known in advance, each producer can enqueue a
+completion marker after its last item. The queue preserves each producer's order,
+so once consumers have dequeued all producer markers, all work has been dequeued.
+A single marker from an unrelated thread would not provide that guarantee:
+there is no ordering between different producers.
 
-This example uses the same final-consumer synchronization as the non-blocking
-examples. `produceItem(item)` is an application function that returns false when
-that producer has no more work; `consumeItem(item)` processes an item. These
-functions and the `Item` copy/move operations do not throw in this example.
-Enqueue failure terminates the example instead
-of silently losing work; applications should choose their own failure policy.
+The last consumer to count a producer marker sends one stop marker per consumer.
+These wake idle consumers without timeouts. Consumers still processing an item
+finish it before reading a stop marker; joining all consumers waits for that
+processing to complete before destroying the queue.
+
+This example requires positive producer and consumer counts. `produceItem(item)`
+is an application function that returns false when that producer has no more
+work; `consumeItem(item)` processes an item. The functions and `Item` operations
+must not throw. The wrapper requires a default-constructible, copyable `Item`.
+Enqueue failure terminates the example instead of losing work or a shutdown
+marker; applications should choose their own failure policy.
 
 ```C++
-BlockingConcurrentQueue<Item> q;
+struct Message {
+	enum Kind { Work, ProducerDone, Stop } kind;
+	Item item;
+};
+BlockingConcurrentQueue<Message> q;
 const int ProducerCount = 8;
 const int ConsumerCount = 8;
 std::thread producers[ProducerCount];
 std::thread consumers[ConsumerCount];
-std::atomic<bool> producersDone(false);
-std::atomic<int> doneConsumers(0);
+std::atomic<int> doneProducers(0);
 
 for (int i = 0; i != ConsumerCount; ++i) {
 	consumers[i] = std::thread([&]() {
-		Item item;
-		while (!producersDone.load(std::memory_order_acquire)) {
-			if (q.wait_dequeue_timed(item, std::chrono::milliseconds(100))) {
-				consumeItem(item);
+		Message message;
+		for (;;) {
+			q.wait_dequeue(message);
+			if (message.kind == Message::Stop) {
+				break;
+			}
+			if (message.kind == Message::Work) {
+				consumeItem(message.item);
+			}
+			else if (doneProducers.fetch_add(1, std::memory_order_acq_rel) + 1 == ProducerCount) {
+				for (int j = 0; j != ConsumerCount; ++j) {
+					if (!q.enqueue(Message{Message::Stop, Item{}})) {
+						std::terminate();
+					}
+				}
 			}
 		}
-		// Acquire producer completion before the final dequeue attempts.
-		do {
-			while (q.try_dequeue(item)) {
-				consumeItem(item);
-			}
-		} while (doneConsumers.fetch_add(1, std::memory_order_acq_rel) + 1 == ConsumerCount);
 	});
 }
 for (int i = 0; i != ProducerCount; ++i) {
 	producers[i] = std::thread([&]() {
-		Item item;
-		while (produceItem(item)) {
-			if (!q.enqueue(item)) {
+		Message message{Message::Work, Item{}};
+		while (produceItem(message.item)) {
+			if (!q.enqueue(message)) {
 				std::terminate();
 			}
+		}
+		// Use this producer's queue, after its final work item.
+		if (!q.enqueue(Message{Message::ProducerDone, Item{}})) {
+			std::terminate();
 		}
 	});
 }
 for (int i = 0; i != ProducerCount; ++i) {
 	producers[i].join();
 }
-producersDone.store(true, std::memory_order_release);
 for (int i = 0; i != ConsumerCount; ++i) {
 	consumers[i].join();
 }
 // All accepted items have been processed, and q can now be destroyed.
 ```
 
-The release store happens after joining every producer, so a consumer that
-observes it also sees their completed enqueue operations. No producer may enqueue
-after this point. The last consumer repeats the drain after acquiring the other
-consumers' completion effects, as in the pumping example below.
-
-A timeout only lets a consumer recheck the completion flag; it does not by itself
-mean production has finished. An idle consumer may wait for the timeout before
-noticing shutdown (plus scheduling delays). Joining all consumers also waits for
-item processing to finish before the queue is destroyed.
+Each producer must send exactly one completion marker, using the same producer
+thread (or explicit producer token) as its work, and must not enqueue more work
+afterward. The completion counter combines observations from different consumers;
+only the consumer reaching `ProducerCount` sends stop markers. Neither
+`size_approx()` nor the relative ordering of different producers is used to
+recognize completion.
 
 ## Producer/consumer model (separate stages)
 ```C++
