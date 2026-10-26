@@ -7,17 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A4A61B9726948A0E002D6968 /* concurrentqueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A4A61B9626948A0E002D6968 /* concurrentqueue.cpp */; };
 		CFBF030B1C595BD60042518B /* simplethread.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF03011C595BD60042518B /* simplethread.cpp */; };
 		CFBF030C1C595BD60042518B /* systemtime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF03031C595BD60042518B /* systemtime.cpp */; };
 		CFBF030E1C595BD60042518B /* mallocmacro.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF03081C595BD60042518B /* mallocmacro.cpp */; };
 		CFBF030F1C595BD60042518B /* unittests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF030A1C595BD60042518B /* unittests.cpp */; };
-		CFBF03101C595BD60042518B /* concurrentqueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF031A1C595BD60042518B /* concurrentqueue.cpp */; };
-		CFBF03111C595BD60042518B /* blockingconcurrentqueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CFBF031B1C595BD60042518B /* blockingconcurrentqueue.cpp */; };
 		CFBF03121C5962CD0042518B /* main_ios.mm in Sources */ = {isa = PBXBuildFile; fileRef = CFBF03101C595FBF0042518B /* main_ios.mm */; };
 		CFBF03141C5962E60042518B /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFBF03131C5962E60042518B /* UIKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A4A61B9626948A0E002D6968 /* concurrentqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = concurrentqueue.cpp; path = ../../../c_api/concurrentqueue.cpp; sourceTree = "<group>"; };
 		CFBF02E41C595A0F0042518B /* concurrentqueue-unittests-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "concurrentqueue-unittests-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFBF03011C595BD60042518B /* simplethread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = simplethread.cpp; sourceTree = "<group>"; };
 		CFBF03021C595BD60042518B /* simplethread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = simplethread.h; sourceTree = "<group>"; };
@@ -26,8 +26,6 @@
 		CFBF03081C595BD60042518B /* mallocmacro.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = mallocmacro.cpp; sourceTree = "<group>"; };
 		CFBF03091C595BD60042518B /* minitest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = minitest.h; sourceTree = "<group>"; };
 		CFBF030A1C595BD60042518B /* unittests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = unittests.cpp; sourceTree = "<group>"; };
-		CFBF031A1C595BD60042518B /* concurrentqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = concurrentqueue.cpp; sourceTree = "<group>"; };
-		CFBF031B1C595BD60042518B /* blockingconcurrentqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = blockingconcurrentqueue.cpp; sourceTree = "<group>"; };
 		CFBF03101C595FBF0042518B /* main_ios.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = main_ios.mm; sourceTree = "<group>"; };
 		CFBF03131C5962E60042518B /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -44,11 +42,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A4A61B95269489FE002D6968 /* c_api */ = {
+			isa = PBXGroup;
+			children = (
+				A4A61B9626948A0E002D6968 /* concurrentqueue.cpp */,
+			);
+			path = c_api;
+			sourceTree = "<group>";
+		};
 		CFBF02CB1C5959990042518B = {
 			isa = PBXGroup;
 			children = (
 				CFBF03101C595FBF0042518B /* main_ios.mm */,
-				CFBF03001C595BD60042518B /* c_api */,
+				A4A61B95269489FE002D6968 /* c_api */,
 				CFBF03001C595BD60042518B /* common */,
 				CFBF03061C595BD60042518B /* unittests */,
 				CFBF02D51C5959990042518B /* Products */,
@@ -62,16 +68,6 @@
 				CFBF02E41C595A0F0042518B /* concurrentqueue-unittests-ios.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		CFBF03001C595BD60042518B /* c_api */ = {
-			isa = PBXGroup;
-			children = (
-				CFBF031A1C595BD60042518B /* concurrentqueue.cpp */,
-				CFBF031B1C595BD60042518B /* blockingconcurrentqueue.cpp */,
-			);
-			name = c_api;
-			path = ../../c_api;
 			sourceTree = "<group>";
 		};
 		CFBF03001C595BD60042518B /* common */ = {
@@ -136,6 +132,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 				Base,
 			);
@@ -166,11 +163,10 @@
 			files = (
 				CFBF03121C5962CD0042518B /* main_ios.mm in Sources */,
 				CFBF030C1C595BD60042518B /* systemtime.cpp in Sources */,
+				A4A61B9726948A0E002D6968 /* concurrentqueue.cpp in Sources */,
 				CFBF030E1C595BD60042518B /* mallocmacro.cpp in Sources */,
 				CFBF030B1C595BD60042518B /* simplethread.cpp in Sources */,
 				CFBF030F1C595BD60042518B /* unittests.cpp in Sources */,
-				CFBF03101C595BD60042518B /* concurrentqueue.cpp in Sources */,
-				CFBF03111C595BD60042518B /* blockingconcurrentqueue.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
