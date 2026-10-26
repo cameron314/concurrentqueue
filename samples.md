@@ -245,6 +245,7 @@ for (int i = 0; i != ConsumerCount; ++i) {
 				consumeItem(message.item);
 			}
 			else if (doneProducers.fetch_add(1, std::memory_order_acq_rel) + 1 == ProducerCount) {
+				assert(message.kind == Message::ProducerDone);
 				for (int j = 0; j != ConsumerCount; ++j) {
 					if (!q.enqueue(Message{Message::Stop, Item{}})) {
 						std::terminate();
