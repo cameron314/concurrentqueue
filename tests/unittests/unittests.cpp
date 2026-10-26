@@ -378,6 +378,7 @@ public:
 		// Semaphore
 		REGISTER_TEST(acquire_and_signal);
 		REGISTER_TEST(try_acquire_and_signal);
+		REGISTER_TEST(details_semaphore_basic_and_threaded);
 		
 		// Core algos
 		REGISTER_TEST(core_add_only_list);
@@ -4669,6 +4670,64 @@ public:
 
 		ASSERT_OR_FAIL(s.tryWait());
 		ASSERT_OR_FAIL(s.availableApprox() == 3);
+
+		return true;
+	}
+
+	/**
+	 * @brief Validates details::Semaphore basic operations, multi-signal, timed wait,
+	 * and concurrent acquire/release behavior across threads.
+	 *
+	 * @return true if all assertions succeed.
+	 */
+	bool details_semaphore_basic_and_threaded()
+	{
+		details::Semaphore sem(0);
+
+		// Non-blocking try_wait on 0 count
+		ASSERT_OR_FAIL(!sem.try_wait());
+
+		// Timed wait on 0 count should time out
+		ASSERT_OR_FAIL(!sem.timed_wait(1000)); // 1ms
+
+		// Signal single
+		sem.signal();
+		ASSERT_OR_FAIL(sem.try_wait());
+		ASSERT_OR_FAIL(!sem.try_wait());
+
+		// Signal multiple
+		sem.signal(5);
+		for (int i = 0; i < 5; ++i) {
+			ASSERT_OR_FAIL(sem.wait());
+		}
+		ASSERT_OR_FAIL(!sem.try_wait());
+
+		// Concurrent wait and signal
+		const int THREAD_COUNT = 4;
+		const int OPS_PER_THREAD = 10;
+		std::atomic<int> completed(0);
+		std::vector<SimpleThread> threads(THREAD_COUNT);
+
+		for (int i = 0; i < THREAD_COUNT; ++i) {
+			threads[i] = SimpleThread([&]() {
+				for (int j = 0; j < OPS_PER_THREAD; ++j) {
+					if (sem.wait()) {
+						completed.fetch_add(1, std::memory_order_relaxed);
+					}
+				}
+			});
+		}
+
+		for (int j = 0; j < OPS_PER_THREAD; ++j) {
+			sem.signal(THREAD_COUNT);
+		}
+
+		for (int i = 0; i < THREAD_COUNT; ++i) {
+			threads[i].join();
+		}
+
+		ASSERT_OR_FAIL(completed.load() == THREAD_COUNT * OPS_PER_THREAD);
+		ASSERT_OR_FAIL(!sem.try_wait());
 
 		return true;
 	}
