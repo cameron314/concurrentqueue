@@ -26,7 +26,7 @@ extern "C" {
 	__declspec(dllimport) unsigned long __stdcall WaitForSingleObject(void* hHandle, unsigned long dwMilliseconds);
 	__declspec(dllimport) int __stdcall ReleaseSemaphore(void* hSemaphore, long lReleaseCount, long* lpPreviousCount);
 }
-#elif defined(__MACH__)
+#elif defined(__MACH__) && defined(__APPLE__)
 #include <mach/mach.h>
 #elif defined(__MVS__)
 #include <zos-semaphore.h>
@@ -118,7 +118,7 @@ public:
 		while (!ReleaseSemaphore(m_hSema, count, nullptr));
 	}
 };
-#elif defined(__MACH__)
+#elif defined(__MACH__) && defined(__APPLE__)
 //---------------------------------------------------------
 // Semaphore (Apple iOS and OSX)
 // Can't use POSIX semaphores due to http://lists.apple.com/archives/darwin-kernel/2009/Apr/msg00010.html
