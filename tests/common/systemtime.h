@@ -6,7 +6,7 @@
 #define ST_WINDOWS
 #elif defined(__APPLE__) && defined(__MACH__)
 #define ST_APPLE
-#elif defined(__linux__) || defined(__FreeBSD__) || defined(BSD)
+#elif defined(__unix__)
 #define ST_NIX
 #else
 #error "Unknown platform"
